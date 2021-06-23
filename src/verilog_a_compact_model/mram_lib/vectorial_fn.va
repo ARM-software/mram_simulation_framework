@@ -1,0 +1,107 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Support functions
+
+// `ifndef _vectorial_fn_
+// `define _vectorial_fn_
+
+analog function real sign;
+	input x;
+	real x;
+	begin
+		if (x >=0) begin
+			sign=1.0;
+		end
+		else begin
+			sign = -1.0;
+		end
+	end
+endfunction
+
+// compute cartesian dot product u * v
+analog function real udv_cart;
+	input u_x,u_y,u_z,v_x,v_y,v_z;
+	output d;
+	real u_x, u_y, u_z, v_x, v_y, v_z, d;
+	begin
+		d = u_x*v_x + u_y * v_y + u_z * v_z;
+		// dummy
+		udv_cart = 0;
+	end
+endfunction
+
+// compute cartesian vectorial product u^v
+analog function real uxv_cart;
+	input u_x,u_y,u_z,v_x,v_y,v_z;
+	output w_x, w_y, w_z;
+	real u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z;
+	begin
+		w_x = (u_y*v_z - v_y*u_z);
+		w_y = (-u_x*v_z + u_z*v_x);
+		w_z = (u_x*v_y - u_y*v_x);
+		// dummy
+		uxv_cart = 0;
+	end
+endfunction
+
+// transform cartesian vector to spherical
+analog function real cart_from_spherical;
+	input rho, theta, phi;
+	output x, y, z;
+	real theta, phi, rho, x, y, z;
+	begin
+		x = rho * $sin(theta)*$cos(phi);
+		y = rho * $sin(theta)*$sin(phi);
+		z = rho * $cos(theta);
+		// dummy
+		cart_from_spherical = 0;
+	end
+endfunction
+
+// compute differential unit vectors
+
+// Line element (length element) computation
+// Compute dr (theta component)
+// given infinitesimal displacement from rho, theta, phi.
+// note rho==1
+analog function real diff_unit_theta_vector;
+	input m_sph_rho, m_sph_theta, m_sph_phi;
+	output dr_theta_x, dr_theta_y, dr_theta_z;
+	real m_sph_rho, m_sph_theta, m_sph_phi,
+		dr_theta_x, dr_theta_y, dr_theta_z;
+	begin
+		dr_theta_x = $cos(m_sph_theta)*$cos(m_sph_phi);
+		dr_theta_y = $cos(m_sph_theta)*$sin(m_sph_phi);
+		dr_theta_z = -$sin(m_sph_theta);
+		// dummy
+		diff_unit_theta_vector = 0;
+
+	end
+endfunction
+
+// Line element (length element) computation
+// Compute dr (phi component)
+// given infinitesimal displacement from rho, theta, phi.
+// note rho==1
+analog function real diff_unit_phi_vector;
+	input m_sph_rho, m_sph_theta, m_sph_phi;
+	output dr_phi_x, dr_phi_y, dr_phi_z;
+	real m_sph_rho, m_sph_theta, m_sph_phi,
+		dr_phi_x, dr_phi_y, dr_phi_z;
+	begin
+		dr_phi_x = -$sin(m_sph_phi);
+		dr_phi_y = $cos(m_sph_phi);
+		dr_phi_z = 0;
+		// dummy
+		diff_unit_phi_vector = 0;
+
+	end
+endfunction
+
+// `endif

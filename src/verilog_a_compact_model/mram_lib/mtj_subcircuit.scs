@@ -1,0 +1,58 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Arm MTJ structure, with generic conduction, in a subcircuit form
+
+simulator lang=spectre
+
+ahdl_include "llg_spherical_solver.va"
+
+
+subckt mtj_subcircuit (pl fl mz h_ext_x h_ext_y h_ext_z)
+parameters p_do_thermal=0 p_do_theta_windowing=0 p_do_fake_thermal=0 p_atol=1e-6
++ p_theta_init=0.01414119
++ p_p=0.75
++ p_tmr = 2*p_p*p_p/(1-p_p*p_p)
++ p_r_p=6e3
++ p_r_contact = 2
+
+// llgs solver
+llgs ( aux_0 aux_1 mz h_ext_x h_ext_y h_ext_z) LLGs_va \
+    p_theta_init=p_theta_init \
+    p_do_thermal=p_do_thermal \
+    p_do_theta_windowing=p_do_theta_windowing \
+    p_do_fake_thermal=p_do_fake_thermal \
+    p_atol=p_atol
+
+i_aux (0 aux_0) bsource i=i(r_mtj_module)
+v_aux (aux_1 0) bsource v=v(fl, pl)
+r_aux (aux_0 0) resistor r=1
+
+// simple TMR based conduction
+r_mtj_module (fl pl) bsource r=p_r_p*(1 + p_tmr/(p_tmr + 2))/(1 - p_tmr/(p_tmr + 2)*V(mz))
+
+ends mtj_subcircuit
+
+subckt mtj_subcircuit_no_hext (pl fl)
+parameters p_do_thermal=0 p_do_theta_windowing=0 p_do_fake_thermal=1 p_atol=1e-6
++ p_theta_init=0.01414119
+
+// __NO_H_EXT__
+V_hext_x h_ext_x 0 vsource type=dc dc=0
+// __NO_H_EXT__
+V_hext_y h_ext_y 0 vsource type=dc dc=0
+// __NO_H_EXT__
+V_hext_z h_ext_z 0 vsource type=dc dc=0
+
+mtj (fl pl mz h_ext_x h_ext_y h_ext_z) mtj_subcircuit \
+    p_theta_init=p_theta_init \
+    p_do_thermal=p_do_thermal \
+    p_do_theta_windowing=p_do_theta_windowing \
+    p_do_fake_thermal=p_do_fake_thermal \
+    p_atol=p_atol
+ends mtj_subcircuit_no_hext

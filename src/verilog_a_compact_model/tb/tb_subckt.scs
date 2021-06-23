@@ -1,0 +1,86 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+// example PMA MTJ testbench
+
+simulator lang=spectre
+global 0
+
+include "../mram_lib/mtj_subcircuit.scs"
+
+
+parameters 
++ i_dc=0e-6
++ i_pulse_ap2p=-35e-6
++ w_pulse=50e-9
++ input_delay=-2e-9
++ temp_celsius=26.85
++ do_thermal=0
++ do_theta_windowing=0
++ do_fake_thermal=0
++ sim_pivrel=0.1
++ sim_rtol=1e-4
++ sim_atol=1e-8
++ maxstep=1e-12
++ method=traponly
+// + method=gear2only
+// [noise]
+// + sim_rtol=1e-2
+// + sim_atol=1e-5
+
+
+// AP->P
+// IDC0 0 e0 isource type=dc dc=i_dc
+// (pl, fl) pl first to keep sm2tj compatibility
+ITRAN0 0 e0 isource type=pulse dc=i_dc val0=0 val1=-i_pulse_ap2p width=w_pulse rise=2n delay=input_delay
+// __H_EXT__ MTJ_ap2p (e0 0 h_ext_x h_ext_y h_ext_z)\
+// __NO_H_EXT__
+mtj_ap2p (e0 0 mz 0 0 0) mtj_subcircuit
+	+ p_do_thermal=do_thermal
+	+ p_do_theta_windowing=do_theta_windowing
+	+ p_do_fake_thermal=do_fake_thermal
+	+ p_atol=sim_atol
+
+
+////////////////////////////////////////////
+// sim options
+highVoltageOptions options highvoltage=yes bin_relref=yes
+
+simulatorOptions options \
+    temp=(temp_celsius) \
+    tnom=25 scalem=1.0 scale=1.0 gmin=1e-12 rforce=1 maxnotes=5 maxwarns=5 \
+    digits=5 cols=80 \
+    reltol=sim_rtol \
+    // [noise] for noise sim
+    // vabstol=1e-2 iabstol=1e-3 \
+    // others, not needed
+    // vabstol=sim_atol iabstol=sim_atol \
+    // pivrel=sim_rtol \
+    //sensfile="../psf/sens.output" \
+    // checklimitdest=psf 
+
+finalTimeOP info what=oppoint where=rawfile
+modelParameter info what=models where=rawfile
+element info what=inst where=rawfile
+outputParameter info what=output where=rawfile
+// designParamVals info what+ eters where=rawfile
+primitives info what=primitives where=rawfile
+subckts info what=subckts where=rawfile
+// save all options
+saveOptions options save=all subcktprobelvl=3 saveahdlvars=all exportfile="./exported_test.data"
+// save selected options
+// saveOptions options save=selected subcktprobelvl=3 saveahdlvars=selected exportfile="./exported_test.data"
+// required by export
+
+// parameters to adjust
+
+// simulate with traponly ++aps for calibrated model
+
+// tran_tt tran stop=(2*input_delay + w_pulse) write="spectre.ic" writefinal="spectre.fc" \
+tran_tt tran stop=(50n) write="spectre.ic" writefinal="spectre.fc" \
+    annotate=status maxiters=5 \
+    method=method \
+    // maxstep=maxstep \
+    // step=maxstep \

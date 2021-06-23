@@ -1,0 +1,91 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Arm LLGs model for PMA-MTJs, s-LLGS parameters
+
+// use only if required
+// `ifndef _llg_parameters_
+// `define _llg_parameters_
+
+`include "disciplines.vams"
+`include "constants.vams"
+
+// PARAMETERS
+parameter real p_atol=1e-8;
+
+// thermal handling
+parameter integer p_do_thermal=0;                // simulate thermal noise
+parameter integer p_do_theta_windowing=0;        // force a min theta angle
+                                                 // (set to theta_init) if
+                                                 // thermal is not computed,
+                                                 // to avoid total damping
+parameter real p_theta_windowing_factor = 3;     // defines theta_min = theta_0 * param
+                                                 // if windowed
+parameter integer p_do_fake_thermal=1;           // simulate fake thermal noise
+parameter real p_d_theta_fake_th=0.01;           // d_theta will have an extra
+                                                 // term based on this
+// randomness
+parameter real p_seed=0;
+
+// pinned layer angle
+parameter real p_theta_pl=0.0;                   // [rad] pinned layer theta
+parameter real p_phi_pl=0.0;                     // [rad] pinned layer phi
+
+// initial angle
+parameter integer p_state_init = 2;              // 0: P, 1: AP, 2: theta_init
+parameter real p_theta_init=0.01414119;          // [rad] 
+                                                 // if state_init  0/1:
+                                                 // -> (pi -) 1/sqrt(2delta(T))
+parameter real p_phi_init=0.7854;                // [rad]
+
+// magnetic parameters
+parameter real p_k_i_0=1e-3;                     // uniaxial anisotropy [J/m^2]
+parameter real p_alpha=0.01;                     // alpha damping factor
+parameter real p_ms=1.2e6;                      // magnetization sat. [A/m]
+// shape anisotropy
+parameter real p_shape_ani_demag_mode=1;         // 0: no shape anisotropy
+// oommf validation
+// parameter real p_shape_ani_demag_mode=1;         // 0: no shape anisotropy
+                                                 // 1: shape_ani_demag_n vector
+                                                 // 2 and 3:
+                                                 // two different literature
+                                                 // implementations
+// oomff validation
+parameter real p_shape_ani_demag_n_x=0.029;     // Shape anisotropy demag vector
+parameter real p_shape_ani_demag_n_y=0.029;     // if -1, it is computed
+parameter real p_shape_ani_demag_n_z=0.941;     // as a cylinder
+// exchange energy
+parameter integer p_do_a_exchange=0;             // whether do or not energy
+                                                 // exchange
+parameter real p_a_exchange=1e-11;               // Exchange constant [J/m]
+// stt parameters
+parameter real p_stt_mode=1;                     // 0: stt_oommf_full:
+                                                 //   lamb. & P free per layer
+                                                 // 1: stt_oommf_simple:
+                                                 //   single lambda and P
+                                                 // 2: stt_simplest: just p
+// stt mode oomf_full
+parameter real p_stt_scale_mult = 1;              // 1 matching OOMMF
+parameter real p_p_pl=0.3;                       // polarization factor
+parameter real p_p_fl=0.25;                      // polarization factor
+parameter real p_lambda_pl=1.2;                  // [FITTING] parameter
+parameter real p_lambda_fl=1.2;                  // [FITTING] parameter
+                                                 // for out of plane torque
+// stt mode oomf_simple
+parameter real p_lambda_s=1.0;                   // [FITTING] parameter
+parameter real p_p=0.75;                         // polarization factor
+// stt mode simplest
+parameter real p_nabla_mult=1;                   // epsilon = nabla/2
+// secondary STT term
+parameter real p_eps_prime=0.0;                  // [FITTING] constant
+// vcma paramters
+parameter integer p_do_vcma=0;
+parameter real p_xi=61e-15;                     // vcma coeff, [J/(V*m)]
+
+//use only if needed
+// `endif

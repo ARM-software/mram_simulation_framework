@@ -1,0 +1,30 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+//
+// Arm LLGs model for PMA-MTJs, dimension parameters
+
+// use only if required:
+// `ifndef _dimension_parameters_
+// `define _dimension_parameters_
+
+`include "disciplines.vams"
+`include "constants.vams"
+
+
+// PARAMETERS
+// dimmensions
+parameter real p_t_fl=1.0e-9;                   // [m] thickness of free layer
+parameter real p_t_ox=1.6e-9;                   // [m] thickness of oxide
+parameter real p_w_fl=50e-9;                    // [m] mtj width
+parameter real p_l_fl=50e-9;                    // [m] mtj length
+
+
+parameter real _area = `M_PI/4*p_w_fl*p_l_fl;   // [m^2}
+parameter real _volume = _area*p_t_fl;          // [m^3]
+
+// use only if required:
+// `endif

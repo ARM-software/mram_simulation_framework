@@ -1,0 +1,24 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+//
+// Arm LLGs model for PMA-MTJs, conductance parameters
+
+// use only if required:
+// `ifndef _conductance_parameters_
+// `define _conductance_parameters_
+
+`include "disciplines.vams"
+`include "constants.vams"
+
+// PARAMETERS
+// TMR and conductance
+parameter real p_r_p=6e3;                       // RP resistance, [ohm]
+parameter real p_tmr = 2*p_p*p_p/(1-p_p*p_p);
+parameter real p_r_contact = 2;
+
+// use only if required:
+// `endif

@@ -1,0 +1,903 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Arm LLGs model for PMA-MTJs, s-LLGS solver
+
+`ifndef _llg_spherical_solver_
+`define _llg_spherical_solver_
+
+`include "disciplines.vams"
+`include "constants.vams"
+
+// fl or nothing: free layer
+// pl: pinned layer
+
+// Behavioral Model for a single magnetic tunnel junction
+module LLGs_va (i_mtj, v_mtj, v_m_z, h_ext_x, h_ext_y, h_ext_z);
+
+// functions
+`include "vectorial_fn.va"
+// constants
+`include "physical_constants.va"
+// parameters
+`include "llg_parameters.va"
+`include "dimension_parameters.va"
+`include "conductance_parameters.va"
+
+ground gnd;
+
+input i_mtj, v_mtj;
+output v_m_z;
+input h_ext_x, h_ext_y, h_ext_z;
+
+// electrical variables
+electrical h_ext_x, h_ext_y, h_ext_z;
+// current, voltage
+current i_mtj;
+voltage v_mtj;
+voltage v_m_z;
+
+// seed
+integer seed;
+
+// last time
+real t_prev;
+real dt;
+
+// reduced gamma [A/m]
+real c_gamma;
+
+// relevant angles
+real theta_init, phi_init;
+real theta_rand;
+real theta_0, theta_min;
+
+// magnetic vector differentials
+// real sin_min_theta;
+real d_m_theta, d_m_phi;
+real d_fake_th_theta;
+// magnetic vector
+real m_rho, m_theta, m_phi;
+real m_x, m_y, m_z;
+// pinned layer magnetic vector
+real pl_x, pl_y, pl_z;
+
+// h_eff_cartesians
+real h_eff_x, h_eff_y, h_eff_z;
+// noise 
+real h_th_x, h_th_y, h_th_z;
+// h_stt1 and h_stt2 for in-out/plane stt components
+real epsilon, beta;
+real h_stt_1_x, h_stt_1_y, h_stt_1_z;
+real h_stt_2_x, h_stt_2_y, h_stt_2_z;
+// h_aux_cartesians
+real h_inc_aux_x, h_inc_aux_y, h_inc_aux_z;
+
+// spherical components
+real d_h_eff_theta, d_h_eff_phi, d_h_stt_1_theta, d_h_stt_1_phi, d_h_stt_2_theta, d_h_stt_2_phi;
+
+// mdp product
+real mdp;
+
+// unit vector terms
+real dr_theta_x, dr_theta_y, dr_theta_z;
+real dr_phi_x, dr_phi_y, dr_phi_z;
+
+// ms and ki (dependent on T)
+real ms;
+real k_i;
+// thermal stability
+real h_k_0;
+real thermal_stability;
+real th_power_noise_std;
+
+// STT related constants/magnitudes following OOMMF.
+// three different modes:
+// a) OOMMFC, where lambda_pl != lambda_fl
+// see full equation at
+// https://kelvinxyfong.wordpress.com/research/research-interests
+// /oommf-extensions/oommf-extension-xf_thermspinxferevolve/
+// b) OOMMFC, where lambda_pl == lambda_fl == lambda
+// c) stt_simplest:
+// Khvalkovskiy, A. V., et. al.
+// Basic principles of STT-MRAM cell operation in memory arrays.
+// Journal of Physics D: Applied Physics, 46(7), 074001.
+// https://doi.org/10.1088/0022-3727/46/7/074001
+// 
+// precomputed once for efficiency
+real _stt_scale_fac;
+real _lamb_PL2, _lamb_FL2;
+real _ap, _am, _ap2, _am2;
+real _kp, _km;
+real _eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+
+// shape anisotropy demag_n
+real shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z;
+
+// aux variable for user defined fn
+real fn;
+real init_aux;
+
+// Inits shape anisotropy constants.
+analog function real initialize_shape_anisotropy_demag;
+	output shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z;
+	real shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z,
+		r, nz;
+	begin
+		// mode 0, no shape anisotropy
+		if (p_shape_ani_demag_mode == 0) begin
+			shape_ani_demag_n_x = 0.0;
+			shape_ani_demag_n_y = 0.0;
+			shape_ani_demag_n_z = 0.0;
+		end
+		// mode 0.5, given shape anisotropy
+		else if (p_shape_ani_demag_mode == 1 &&
+				p_shape_ani_demag_n_x >= 0 && 
+				p_shape_ani_demag_n_y >= 0 &&
+				p_shape_ani_demag_n_z >= 0) begin
+			shape_ani_demag_n_x = p_shape_ani_demag_n_x;
+			shape_ani_demag_n_y = p_shape_ani_demag_n_y;
+			shape_ani_demag_n_z = p_shape_ani_demag_n_z;
+		end
+		else if (p_shape_ani_demag_mode == 2) begin
+			//  ferromagnetic cylinder
+			//  Sato, M., & Ishii, Y. (1989).
+			//  Simple and approximate expressions of demagnetizing
+			//  factors of uniformly magnetized rectangular
+			//  rod and cylinder.
+			//  Journal of Applied Physics, 66(2), 983–985.
+			//  https://doi.org/10.1063/1.343481
+			r = $sqrt(p_w_fl*p_l_fl)/2;
+			nz = 1/(2*p_t_fl/(r*$sqrt(`M_PI)) + 1);
+			shape_ani_demag_n_x = (1-nz)/2;
+			shape_ani_demag_n_y = (1-nz)/2;
+			shape_ani_demag_n_z = nz;
+		end
+		else if (p_shape_ani_demag_mode == 3) begin
+			// Zhang, K., et al.
+			// Compact Modeling and Analysis of Voltage-Gated
+			// Spin-Orbit Torque Magnetic Tunnel Junction.
+			// IEEE Access, 8, 50792–50800.
+			// https://doi.org/10.1109/ACCESS.2020.2980073
+			shape_ani_demag_n_x = `M_PI*p_t_fl / (4*$sqrt(p_w_fl*p_l_fl));
+			shape_ani_demag_n_y = `M_PI*p_t_fl / (4*$sqrt(p_w_fl*p_l_fl));
+			shape_ani_demag_n_z = 1 - 2 * `M_PI*p_t_fl/(4*$sqrt(p_w_fl*p_l_fl));
+		end
+		else begin
+			$strobe("\n\n**************************************");
+			$strobe("\t[ERROR] in anisotropy definition.");
+		end
+		// dummyV
+		initialize_shape_anisotropy_demag = 0;
+	end
+endfunction
+
+analog function real initialize_stt_oommf_full;
+	input ms;
+	output _stt_scale_fac, _ap, _am, _kp, _km;
+	real ms,
+		_stt_scale_fac, _ap, _am, _kp, _km,
+		// internal aux
+		_lamb_PL2, _lamb_FL2, _ap2, _am2;
+	begin
+		_stt_scale_fac = p_stt_scale_mult * c_HBAR / (
+			c_U0 * c_E * ms * _volume);
+		_lamb_PL2 = p_lambda_pl*p_lambda_pl;
+		_lamb_FL2 = p_lambda_fl*p_lambda_fl;
+		_ap = $sqrt(_lamb_PL2+1)*(_lamb_FL2+1);
+		_am = $sqrt(_lamb_PL2-1)*(_lamb_FL2-1);
+		_ap2 = (_lamb_PL2+1)*(_lamb_FL2+1);
+		_am2 = (_lamb_PL2-1)*(_lamb_FL2-1);
+		_kp = p_p_pl*_lamb_PL2 * $sqrt((_lamb_FL2+1)/(_lamb_PL2+1)) +
+			p_p_fl * _lamb_FL2*$sqrt((_lamb_PL2-1)/(_lamb_FL2-1));
+		_km = p_p_pl*_lamb_PL2 * $sqrt((_lamb_FL2+1)/(_lamb_PL2+1)) - 
+			p_p_fl * _lamb_FL2*$sqrt((_lamb_PL2-1)/(_lamb_FL2-1));
+		// dummyV
+		initialize_stt_oommf_full = 0;
+	end
+endfunction
+
+analog function real initialize_stt_oommf_simple;
+	input ms;
+	output _stt_scale_fac, _eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+	real ms,
+		_stt_scale_fac, _eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+	begin
+		_stt_scale_fac = p_stt_scale_mult * c_HBAR / (
+			c_U0 * c_E * ms * _volume);
+		_eps_simple_num = p_p*p_lambda_s*p_lambda_s;
+		_eps_simple_den0 = p_lambda_s*p_lambda_s + 1;
+		_eps_simple_den1 = p_lambda_s*p_lambda_s - 1;
+		// dummyV
+		initialize_stt_oommf_simple = 0;
+	end
+endfunction
+
+analog function real initialize_stt_simplest;
+	input ms;
+	output _stt_scale_fac;
+	real _stt_scale_mult, ms, _volume,
+		_stt_scale_fac;
+	begin
+		_stt_scale_fac = p_stt_scale_mult * c_HBAR / (
+			c_U0 * c_E * ms * _volume);
+		// epsilon = nabla/2
+		//  nabla = _nabla_mult * P/(1+/-P^2)
+		//  so epsilon = _nabla_mult/2 * P/(1+/-P^2)
+		//  see model code, different research groups
+		//  use different factors for SMTJ
+		// dummyV
+		initialize_stt_simplest = 0;
+	end
+endfunction
+
+analog function real initialize_stt_constants;
+	input ms;
+	output _stt_scale_fac, _ap, _am, _kp, _km,
+		_eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+	real ms,
+		_stt_scale_fac, _ap, _am, _kp, _km,
+		_eps_simple_num, _eps_simple_den0, _eps_simple_den1,
+		fn;
+	begin
+		if (p_stt_mode==0) begin       // 0: stt_oommf_full:
+			fn = initialize_stt_oommf_full(
+				// inputs
+				ms,
+				// outputs
+				_stt_scale_fac, _ap, _am, _kp, _km);
+		end
+		else if (p_stt_mode==1) begin  // 1: stt_oommf_simple:
+			fn = initialize_stt_oommf_simple(
+				// inputs
+				ms,
+				// outputs
+				_stt_scale_fac, _eps_simple_num, _eps_simple_den0, _eps_simple_den1);
+		end
+		else if (p_stt_mode==2) begin  // simplest, just p
+			fn = initialize_stt_simplest(
+				// inputs
+				ms,
+				// outputs
+				_stt_scale_fac);
+		end
+		else begin
+			$strobe("\n\n**************************************");
+			$strobe("\t[ERROR] in STT mode definition.");
+		end
+		// dummy
+		fn = 0;
+	end
+endfunction
+
+// Init thermal constants.
+analog function real initialize_thermal_constants;
+	input ms, _volume;
+	output th_power_noise_std;
+	real ms, _volume, th_power_noise_std;
+	begin
+
+		// Equation from newest Purdue's paper
+		// Torunbalci, M. M., et. al (2018).
+		// Modular Compact Modeling of MTJ Devices.
+		// IEEE Transactions on Electron Devices, 65(10), 4628–4634.
+		// https:#doi.org/10.1109/TED.2018.2863538
+		// and
+		// De Rose, R., et al.
+		// A Variation-Aware Timing Modeling Approach for Write Operation
+		// in Hybrid CMOS/STT-MTJ Circuits.
+		// IEEE Transactions on Circuits and Systems I: Regular Papers,
+		// 65(3), 1086–1095.
+		// https:#doi.org/10.1109/TCSI.2017.2762431
+		// Please,
+		// note it is different from:
+		// Ament, S., Rangarajan, N., Parthasarathy, A., & Rakheja, S. (2016).
+		// Solving the stochastic Landau-Lifshitz-Gilbert-Slonczewski equation
+		// for monodomain nanomagnets : A survey and analysis
+		// of numerical techniques. 1–19.
+		// http://arxiv.org/abs/1607.04596
+
+		// We also include the (1+alpha^2) effect from
+		// Lee, H., Lee, A., Wang, S., Ebrahimi, F., Gupta,
+		// P., Khalili Amiri, P., & Wang, K. L. (2018).
+		// Analysis and Compact Modeling of Magnetic Tunnel Junctions
+		// Utilizing Voltage-Controlled Magnetic Anisotropy.
+		// IEEE Transactions on Magnetics, 54(4).
+		// https://doi.org/10.1109/TMAG.2017.2788010
+
+		// Also, note that the field generated later is
+		// sqrt(2 alpha temp Kb / ((1+alpha^2) u0 gamma Ms V dt))
+
+		// Units: A/m -> (note gamma = c_GAMMA_0*c_U0)
+		// (J/K) * K /(H/m *A/m * m/C * m^3 * s)
+		// th_gamma = c_GAMMA_0 * c_U0 / (1 + p_alpha*p_alpha)
+	
+		th_power_noise_std = $sqrt(2 * p_alpha * $temperature * c_KB /
+		(c_U0 * c_GAMMA_0 * c_U0 / (1 + p_alpha*p_alpha) * ms * _volume));
+		// dummyV
+		initialize_thermal_constants = 0;
+	end
+endfunction
+
+// init magnetic vectors
+analog function real initialize_magnetic_vectors;
+	input theta_init, phi_init, theta_0, theta_rand;
+	output theta, phi, mx, my, mz, plx, ply, plz, theta_min;
+	real theta_init, phi_init, state, theta_0, theta_rand, 
+		theta, phi, mx, my, mz, plx, ply, plz, theta_min,
+		theta_init_aux, fn;
+	begin
+		// initial angles under no variability
+
+		// mean angle in maxwell boltzman distribution:
+		// 2*scale*$sqrt(2/`M_PI)+loc
+		// default theta_init if theta was not specified
+		if (p_state_init != 2) begin
+			if (theta_init < `M_PI/2) begin
+				theta_init_aux = 2*theta_0*$sqrt(2/`M_PI) + 0;
+			end
+			else begin
+				theta_init_aux = `M_PI - (2*theta_0*$sqrt(2/`M_PI) + 0);
+			end
+		end
+		else begin
+			theta_init_aux = theta_init;
+		end
+
+		// initial angle variability,
+		// f noise is present and an initial angle has not been passed
+		if (p_do_thermal) begin
+			if (theta_init_aux < `M_PI/2) begin
+				theta_init_aux = theta_rand;
+			end
+			else begin
+				theta_init_aux = `M_PI - theta_rand;
+			end
+		end
+
+		// windowing case
+		theta_min = p_theta_windowing_factor * theta_0;
+		// force min theta even when passed initial params
+		// in case it is out of boundaries
+		if (p_do_theta_windowing) begin
+			if (theta_init_aux > `M_PI/2 && (`M_PI-theta_init_aux < theta_min)) begin
+				theta_init_aux = `M_PI - theta_min;
+			end
+			else if (theta_init_aux < theta_min) begin
+				theta_init_aux = theta_min;
+			end
+			$strobe("windowing theta_init_aux: %f", theta_init_aux);
+		end
+
+		// init vectors
+		theta = theta_init_aux;
+		phi = phi_init;
+		fn = cart_from_spherical(1.0, theta, phi, mx, my, mz);
+		fn = cart_from_spherical(1.0, p_theta_pl, p_phi_pl, plx, ply, plz);
+		// dummyV
+		initialize_magnetic_vectors = 0;
+	end
+endfunction
+
+// shape anisotropy demagnetization
+analog function real get_h_demag;
+	input mx, my, mz, ms, nx, ny, nz;
+	output hx, hy, hz;
+	real mx, my, mz, ms, nx, ny, nz,
+		hx, hy, hz;
+	begin
+		// Get H_demag field vector due to shape anisotropy in the FL.
+		// 
+		// Zhang, K., et. al.
+		// Compact Modeling and Analysis of Voltage-Gated Spin-Orbit
+		// Torque Magnetic Tunnel Junction.
+		// IEEE Access, 8, 50792–50800.
+		// https://doi.org/10.1109/ACCESS.2020.2980073
+		// 
+		// Full anisotropy:
+		// Watanabe, K., 
+		// Shape anisotropy revisited in single-digit nanometer magnetic
+		// tunnel junctions.
+		// Nature Communications, 9(1), 5–10. 
+		// https://doi.org/10.1038/s41467-018-03003-7
+		// given [nx, ny, xz]
+		hx = -ms*nx * mx;
+		hy = -ms*ny * my;
+		hz = -ms*nz * mz;
+		// dummyV
+		get_h_demag = 0;
+	end
+endfunction
+
+// VCMA
+analog function real get_h_vcma;
+	input v_mtj, ms;
+	output hz;
+	real v_mtj, ms,
+		hz;
+	begin
+		// Get VCMA  vector.
+		// Zhang, K., et. al.
+		// Compact Modeling and Analysis of Voltage-Gated Spin-Orbit
+		// Torque Magnetic Tunnel Junction.
+		// IEEE Access, 8, 50792–50800.
+		// https://doi.org/10.1109/ACCESS.2020.2980073
+		if (!p_do_vcma) begin
+			hz = 0.0;
+		end
+		else begin
+			hz = -2 * p_xi * v_mtj / (p_t_fl * p_t_ox * c_U0 * ms);
+		end
+		// dummyV
+		get_h_vcma = 0;
+	end
+endfunction
+
+// uniaxial anisotropy
+analog function real get_h_unia;
+	input mz, ki, ms;
+	output hz;
+	real mz, ki, ms,
+		hz;
+	begin
+
+		// We consider interfacial PMA anisotropy.
+		// The geometry defines it.
+		// See Figure 2 at
+		// Khvalkovskiy, A. V., et. al.
+		// Basic principles of STT-MRAM cell operation in memory arrays.
+		// Journal of Physics D: Applied Physics, 46(7), 074001.
+		// https://doi.org/10.1088/0022-3727/46/7/074001
+		// 
+		// Full anisotropy:
+		// Watanabe, K., 
+		// Shape anisotropy revisited in single-digit nanometer magnetic
+		// tunnel junctions.
+		// Nature Communications, 9(1), 5–10. 
+		// https://doi.org/10.1038/s41467-018-03003-7
+		// vector u_anisotropy == unitary z
+		// # uniaxial aniotropy constant in J/m^3
+		// p_k_u = p_thermal_stability * p_temperature * \
+		//     c_KB / (p__volume)
+		// print(f'[debug] k_u: {p_k_u}')
+		// print(f'[debug] thermal stability: {p_thermal_stability}')
+		// return np.array([0.,
+		//                  0.,
+		//                  2 * p_k_u * m_cart[2] / (c_U0 * p_ms)
+		//                  ])
+		hz = 2 * ki * mz / (p_t_fl * c_U0 * ms);
+		// dummyV
+		get_h_unia = 0;
+	end
+endfunction
+
+// STT epsilon
+analog function real get_epsilon_stt;
+	input _kp, _ap, _km, _am, mdp,
+		_eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+	// output epsilon;
+	real _kp, _ap, _km, _am, mdp,
+		_eps_simple_num, _eps_simple_den0, _eps_simple_den1;
+	begin
+		// Compute OOMMF epsilon term based on mdp vector.
+
+		// a) OOMMFC, where lambda_pl != lambda_fl
+		// b) OOMMFC, where lambda_pl == lambda_fl == lambda
+		// c) stt_simplest:
+		// Khvalkovskiy, A. V., et. al.
+		// Basic principles of STT-MRAM cell operation in memory arrays.
+		// Journal of Physics D: Applied Physics, 46(7), 074001.
+		// https://doi.org/10.1088/0022-3727/46/7/074001
+		if (p_stt_mode == 0) begin
+			if (p_lambda_pl == 1.0 || p_lambda_fl == 1.0) begin
+				get_epsilon_stt = 0.5 * p_p;
+			end
+			else begin
+				get_epsilon_stt = _kp / (_ap + _am * mdp) + _km / (_ap - _am * mdp);
+			end
+		end
+		else if (p_stt_mode == 1) begin
+			get_epsilon_stt = _eps_simple_num / (_eps_simple_den0 + _eps_simple_den1 * mdp);
+		end
+		else if (p_stt_mode == 2) begin
+			get_epsilon_stt = p_nabla_mult/2*p_p/(1 + p_p * p_p * mdp);
+		end
+		else begin
+			$strobe("[ERROR] Non-valid stt_mode ");
+			// dummy
+			get_epsilon_stt = -1;
+		end
+	end
+endfunction
+
+analog function real tukey_window;
+	input x, x_min;
+	real x, x_min;
+	begin
+		// Computes Tukey window
+		// 0.5*(1 - cos(2*pi*x / (theta_min/2)))
+		if (x < x_min/4) begin
+			tukey_window = 0.5*(1 - $cos(2*`M_PI*x / (x_min/2)));
+		end
+		else begin
+			tukey_window = 1.0;
+		end
+	end
+endfunction
+
+// theta window definition
+analog function real theta_window;
+	input d_theta, theta, theta_min;
+	real d_theta, theta, theta_min;
+	begin
+		// Windowing fn for theta.
+		// Requires theta between [0, np.pi], not an open integration.
+		if ((theta > `M_PI/2 && d_theta < 0) || (theta < `M_PI/2 && d_theta > 0)) begin
+			theta_window = 1.0;
+		end
+		else if (theta >= `M_PI/2 && (`M_PI - theta > theta_min)) begin
+			// x = -theta + (pi - theta_min)
+			theta_window = tukey_window(-theta + (`M_PI-theta_min), theta_min);
+		end
+		else if (theta <= `M_PI/2 && theta > theta_min) begin
+			// x = theta - theta_min
+			theta_window = tukey_window(theta -theta_min, theta_min);
+		end
+		else begin
+			theta_window = 0.0;
+		end
+	end
+endfunction
+
+analog begin : LLGs_behav
+
+	@(initial_step) begin
+
+		if (p_do_thermal + p_do_theta_windowing + p_do_fake_thermal > 1) begin
+			$strobe("\n\n**************************************");
+			$strobe("\t[ERROR], only one thermal field scheme can be selected");
+			$fatal(0);
+		end
+		// check parameters
+		// thermal, anysotropy, stt, 
+
+		// need of initialization
+		seed = p_seed;
+
+		// Inits shape anisotropy constants.
+		fn = initialize_shape_anisotropy_demag(
+			// inputs
+			// outputs
+			shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z);
+			
+		k_i = p_k_i_0;
+		ms = p_ms;
+
+		c_gamma = c_U0 * c_GAMMA_0 / (1 + p_alpha*p_alpha);
+
+		// initial theta_init guess, if not specified
+		if (p_state_init == 2) begin
+			theta_init = p_theta_init;
+		end
+		// approximate m_cart for initial h_k
+		// will be updated appropriately in init_mag_vectors
+		else begin
+			if (p_state_init == 0) begin
+				theta_init = 0;
+			end
+			else if (p_state_init == 1) begin
+				theta_init = `M_PI;
+			end
+			else begin
+				$strobe("\n\n**************************************");
+				$strobe("\t[ERROR] not supported state_init.");
+				$fatal(0);
+			end
+		end
+		// p_phi_init always provided
+		phi_init = p_phi_init;
+
+		// thermal stability
+		// h_k perpendicular anisotropy component
+		h_k_0 = 2 * k_i * abs($cos(theta_init)) / (p_t_fl * c_U0 * ms);
+		// h_k demag component
+		h_k_0 = h_k_0 - ms*shape_ani_demag_n_z * abs($cos(theta_init));
+		// VCMA not considered as no voltage is applied at the begining
+		thermal_stability = (h_k_0 * c_U0 * ms * _volume) / (2 * c_KB * $temperature);
+		// theta_0
+		theta_0 = $sqrt(1/(2*thermal_stability));
+
+		// STT constants, see llg_parameters.va
+		fn = initialize_stt_constants(
+			// inputs
+			ms, 
+			// outputs
+			_stt_scale_fac, _ap, _am, _kp, _km,
+			_eps_simple_num, _eps_simple_den0, _eps_simple_den1);
+
+		// thermal constants
+		fn = initialize_thermal_constants(ms, _volume, th_power_noise_std);
+
+		// we could add 1ns of stabilization before injecting current
+		// or, by adding noise with gaussian/maxwell-boltzmann distribution,
+		// where the second moment gives
+		// the thermal average (theta_0 square)
+
+		// # Maxwell-Boltzmann distribution info:
+		// a) Switching distributions for perpendicular spin-torque devices
+		//    within the macrospin approximation.
+		//    IEEE Transactions on Magnetics, 48(12), 4684–4700.
+		//    https://doi.org/10.1109/TMAG.2012.2209122
+		// b) Khvalkovskiy, A. V., et. al.
+		//    Basic principles of STT-MRAM cell operation in memory arrays.
+		//    Journal of Physics D: Applied Physics, 46(7), 074001.
+		//    https://doi.org/10.1088/0022-3727/46/7/074001
+
+		// theta_0 can be given by 1/sqrt(2*delta) (most common aproach)
+		// a) Sun, J. Z. (2006).
+		//    Spin angular momentum transfer in current-perpendicular
+		//    nanomagnetic junctions. IBM Journal of Research and Development
+		//    https://doi.org/10.1147/rd.501.0081<
+		//    Butler, W. H., et al.
+		// b) Switching distributions for perpendicular spin-torque devices
+		//    within the macrospin approximation.
+		//    IEEE Transactions on Magnetics, 48(12), 4684–4700.
+		//    https://doi.org/10.1109/TMAG.2012.2209122
+
+		// or 1/sqrt(delta)
+		// c) Khvalkovskiy, A. V., et al.
+		//    Basic principles of STT-MRAM cell operation in memory arrays.
+		//    Journal of Physics D: Applied Physics, 46(7), 074001.
+		//    https://doi.org/10.1088/0022-3727/46/7/074001
+		//get maxwell distribution from chi squared distribution
+		// if X~maxwell then
+		// X^2 ~ X_chisquared^2(3)
+		theta_rand = $sqrt($rdist_chi_square(seed, 3))*theta_0;
+		fn =initialize_magnetic_vectors(
+			// inputs
+			theta_init, phi_init,
+			theta_0, theta_rand,
+			// outputs
+			m_theta, m_phi, m_x, m_y, m_z, pl_x, pl_y, pl_z, theta_min);
+
+		// time reference
+		dt    = 0.0;
+		t_prev    = -1e-9;
+		$strobe("Init abstime: %r, prev: %r", $abstime*1e9, t_prev*1e9);
+
+		$strobe("\n\n**********************************************");
+		$strobe("\tidt atol: %e", p_atol);
+		$strobe("\tdo Thermal Noise: %d", $rtoi(p_do_thermal));
+		$strobe("\tdo Theta Thermal Windowing: %d", $rtoi(p_do_theta_windowing));
+		$strobe("\t\ttheta_windowing_factor: %r", p_theta_windowing_factor);
+		$strobe("\tdo Fake Theta: %d", $rtoi(p_do_fake_thermal));
+		$strobe("\t\td_theta_fake_th: %r", $rtoi(p_d_theta_fake_th));
+		$strobe("\tSeed: %d", $rtoi(p_seed));
+		
+		$strobe("**********************************************");
+		$strobe("\tdo VCMA: %d", $rtoi(p_do_vcma));
+		$strobe("\ttheta_0: %f", theta_0);
+		$strobe("\ttheta_min: %f", theta_min);
+		$strobe("\tepsilon_0: %f", epsilon);
+		$strobe("\tthermal_stability: %f", thermal_stability);
+		$strobe("**********************************************");
+		$strobe("shape ani N: [%f, %f, %f]", shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z);
+		$strobe("\tPL_x: %f, pl_y: %f, pl_z: %f",
+			pl_x, pl_y, pl_z);
+		$strobe("\tInitial m_x: %f, m_y: %f, m_z: %f",
+			m_x, m_y, m_z);
+		$strobe("\tinitial theta: %f", m_theta);
+		$strobe("\tRecovered theta: %f, recovered phi: %f",
+			$acos(m_z), $atan2(m_y, m_x));
+		$strobe("\**********************************************\n\n");
+	end
+
+	// Compute dm_sph/dt fn.
+	// 
+	// LLG equation (with secondary stt term) at eq 1.3
+	// Switching distributions for perpendicular spin-torque devices
+	// within the macrospin approximation.
+	// IEEE Transactions on Magnetics, 48(12), 4684–4700.
+	// https://doi.org/10.1109/TMAG.2012.2209122
+	// see OOMMF for the value of the different terms
+	// and
+	// Ament, S., et al.
+	// Solving the stochastic Landau-Lifshitz-Gilbert-Slonczewski
+	// equation for monodomain nanomagnets :
+	// A survey and analysis of numerical techniques.
+	// 1–19. Retrieved from http://arxiv.org/abs/1607.04596
+
+	// time reference
+	dt = $abstime - t_prev;
+	t_prev = $abstime;
+	// called twice at t=0:
+	// if ($abstime == 0.0) begin
+	// 	dt = 1e9;
+	// 	t_prev = -1e-9;
+	// end
+	if ($abstime > 0 && dt <= 0)  begin
+		$strobe("\n\n**************************************");
+		$strobe("\t[ERROR] negative/zero time step: %r ns", 1e9*dt);
+		$fatal(0);
+	end
+
+	fn = cart_from_spherical(1.0, m_theta, m_phi,  m_x, m_y, m_z);
+	// output m_z for conductance model
+	V(v_m_z, gnd) <+ m_z;
+
+	// Converting spherical coordinates to Cartesian to check rho evolution
+	m_rho = $sqrt(m_x*m_x + m_y*m_y + m_z*m_z);
+	if (m_rho > 1.0001) begin
+		$strobe("!!rho check @ %g ", m_rho);
+	end
+	// m p dot product, defines state
+	fn = udv_cart(m_x, m_y, m_z, pl_x, pl_y, pl_z, mdp);
+
+	// LLG
+	//
+	// [Future] [1] Ms and Ku dependence on temperature
+	// De Rose, R., et al.
+	// A Compact Model with Spin-Polarization Asymmetry for Nanoscaled Perpendicular MTJs.
+	// IEEE Transactions on Electron Devices, 64(10), 4346–4353.
+	// https://doi.org/10.1109/TED.2017.2734967
+	//
+	// Prajapati, S., et. al.
+	// Modeling of a Magnetic Tunnel Junction for a
+	// Multilevel STT-MRAM Cell.
+	// IEEE Transactions on Nanotechnology, 18, 1005–1014.
+	// https://doi.org/10.1109/TNANO.2018.2875491
+
+
+	// effective field components
+	// external field
+	h_eff_x = V(h_ext_x);
+	h_eff_y = V(h_ext_y);
+	h_eff_z = V(h_ext_z);
+
+	// demagnetization anisotropy
+	fn = get_h_demag(
+		// inputs
+		m_x, m_y, m_z, 
+		ms,
+		shape_ani_demag_n_x, shape_ani_demag_n_y, shape_ani_demag_n_z,
+		// outputs
+		h_inc_aux_x, h_inc_aux_y, h_inc_aux_z);
+	h_eff_x = h_eff_x +  h_inc_aux_x;
+	h_eff_y = h_eff_y +  h_inc_aux_y;
+	h_eff_z = h_eff_z +  h_inc_aux_z;
+
+	// uniaxial anisotropy
+	fn = get_h_unia(
+		// inputs
+		m_z, k_i, ms,
+		// outputs
+		h_inc_aux_z);
+	h_eff_z = h_eff_z + h_inc_aux_z;
+
+	// uniaxial anisotropy
+	fn = get_h_vcma(
+		// inputs
+		V(v_mtj), ms,
+		// outputs
+		h_inc_aux_z);
+	h_eff_z = h_eff_z + h_inc_aux_z;
+
+	// thermal induced field 
+	// thermal noise could be handler by simulator as the following white_noise
+	// if (analysis("noise")) begin
+	// 	h_th_x = white_noise(th_noise_std);
+	// 	h_th_y = white_noise(th_noise_std);
+	// 	h_th_z = white_noise(th_noise_std);
+	// end
+	 if( p_do_thermal ) begin
+		h_th_x = $rdist_normal(seed, 0, th_power_noise_std)/$sqrt(dt);
+		h_th_y = $rdist_normal(seed, 0, th_power_noise_std)/$sqrt(dt);
+		h_th_z = $rdist_normal(seed, 0, th_power_noise_std)/$sqrt(dt);
+		h_eff_x = h_eff_x + h_th_x;
+		h_eff_y = h_eff_y + h_th_y;
+		h_eff_z = h_eff_z + h_th_z;
+	end
+
+	// STT in/out plane components
+	epsilon = get_epsilon_stt(
+		// oommf_full
+		_kp, _ap, _km, _am, mdp,
+		// oommf simple
+		_eps_simple_num, _eps_simple_den0, _eps_simple_den1);
+	// beta computation as in OOMMF
+	// beta units are [A/m]
+	beta = I(i_mtj) * _stt_scale_fac;
+	// both eps and eps prime contributions
+	// h_stt components in [A/m]
+	h_stt_1_x = beta * (epsilon * pl_x);
+	h_stt_1_y = beta * (epsilon * pl_y);
+	h_stt_1_z = beta * (epsilon * pl_z);
+	h_stt_2_x = beta * (p_eps_prime * pl_x);
+	h_stt_2_y = beta * (p_eps_prime * pl_y);
+	h_stt_2_z = beta * (p_eps_prime * pl_z);
+
+	// h_eff_phi (local orthogonal unit vector in the direction
+	//            of increasing phi), etc
+	// differential terms from cart to spherical
+	fn = diff_unit_theta_vector(
+		// inputs
+		1.0, m_theta, m_phi,
+		// outputs
+		dr_theta_x, dr_theta_y, dr_theta_z);
+	fn = diff_unit_phi_vector(
+		// inputs
+		1.0, m_theta, m_phi,
+		// outputs
+		dr_phi_x, dr_phi_y, dr_phi_z);
+
+	d_h_eff_theta =   h_eff_x * dr_theta_x 
+			+ h_eff_y * dr_theta_y
+			+ h_eff_z * dr_theta_z;
+	d_h_eff_phi =     h_eff_x * dr_phi_x 
+			+ h_eff_y * dr_phi_y
+			+ h_eff_z * dr_phi_z;
+	d_h_stt_1_theta = h_stt_1_x * dr_theta_x 
+			+ h_stt_1_y * dr_theta_y
+			+ h_stt_1_z * dr_theta_z;
+	d_h_stt_1_phi =   h_stt_1_x * dr_phi_x 
+			+ h_stt_1_y * dr_phi_y
+			+ h_stt_1_z * dr_phi_z;
+	d_h_stt_2_theta = h_stt_2_x * dr_theta_x 
+			+ h_stt_2_y * dr_theta_y
+			+ h_stt_2_z * dr_theta_z;
+	d_h_stt_2_phi =   h_stt_2_x * dr_phi_x 
+			+ h_stt_2_y * dr_phi_y
+			+ h_stt_2_z * dr_phi_z;
+
+	// as specified in OOMMF, gamma([(rad)/s/T]) should interface
+	// the fields in A/m, so introducing u0
+	d_m_theta = c_gamma * (d_h_eff_phi + d_h_stt_1_theta - d_h_stt_2_phi +
+		p_alpha*(d_h_eff_theta - d_h_stt_1_phi - d_h_stt_2_theta));
+	d_m_phi = c_gamma * ( 1 / $sin(m_theta)) * (
+		-d_h_eff_theta + d_h_stt_1_phi + d_h_stt_2_theta +
+		p_alpha*(d_h_eff_phi + d_h_stt_1_theta - d_h_stt_2_phi));
+
+	// Thermal field handling if thermal field not present
+
+	// fake theta term
+	// extra term can be seen as a direct contribution to h_phi
+	// as d_theta/dt dependence on h_th is
+	// ~ c_gamma (h_th_phi + alpha * h_th_theta)
+	// opposing damping
+	if (!p_do_thermal && p_do_fake_thermal) begin
+		d_fake_th_theta = p_d_theta_fake_th * c_gamma * th_power_noise_std / $sqrt(dt);
+		d_m_theta = d_m_theta -sign(m_theta-`M_PI/2) * d_fake_th_theta;
+	end
+
+	// saturate d_theta to emulate min field generated
+	// by the thermal noise, avoiding total damping
+	if (!p_do_thermal && p_do_theta_windowing) begin
+		d_m_theta = d_m_theta * theta_window(d_m_theta, m_theta, theta_min);
+	end
+
+
+	// For solving the differential equation (LLG)
+	// a) providing initial conditions
+	// b) limiting phi to physical boundaries: idtmod and min/max fn
+
+	m_theta = idt(d_m_theta, theta_init, 0, p_atol);
+	m_phi = idtmod(d_m_phi, phi_init, 2*`M_PI, 0, p_atol);
+
+	// no abs control
+	// m_theta = idt(d_m_theta, theta_init);
+	// m_phi = idtmod(d_m_phi, phi_init, 2*`M_PI);
+
+	// naive integration, do not use
+	// m_theta = m_theta + d_m_theta*dt;
+	// m_phi = m_phi + d_m_phi*dt;
+
+end
+
+endmodule
+
+`endif

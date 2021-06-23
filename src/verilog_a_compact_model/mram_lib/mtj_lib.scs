@@ -1,0 +1,20 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Arm LLGs model for PMA-MTJs, mtj lib
+
+simulator lang=spectre
+
+library mtj
+section tt
+include "mtj_subcircuit.scs"
+
+// other wrappers from pdk, needed
+endsection tt
+endlibrary mtj
+

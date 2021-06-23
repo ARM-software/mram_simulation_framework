@@ -1,0 +1,102 @@
+// Copyright (c) 2021 Arm Ltd.
+// All rights reserved.
+//
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Engineer: fernando.garciaredondo@arm.com
+//           pranay.prabhat@arm.com
+// 
+// Arm MTJ structure, with generic conduction
+
+`ifndef _mtj_structure_
+`define _mtj_structure_
+
+`include "disciplines.vams"
+`include "constants.vams"
+
+// fl: free layer
+// pl: pinned layer
+
+// llg
+`include "llg_spherical_solver.va"
+
+// Behavioral Model for a single magnetic tunnel junction
+module mtj_subcircuit(pl, fl, mz, h_ext_x, h_ext_y, h_ext_z);
+
+
+// functions
+`include "vectorial_fn.va"
+// // constants
+`include "physical_constants.va"
+
+// parameters
+`include "llg_parameters.va"
+`include "dimension_parameters.va"
+`include "conductance_parameters.va"
+
+
+inout fl, pl;
+output mz;
+inout h_ext_x, h_ext_y, h_ext_z;
+
+electrical fl, pl;
+current i_mtj;
+voltage v_mtj, mz;
+electrical h_ext_x, h_ext_y, h_ext_z;
+
+// electrical variables
+real r_mtj;
+
+// seed
+integer seed;
+
+
+// sub modules instantiation
+// LLGs_va #(.p_do_thermal(p_do_thermal))
+LLGs_va llgs (.i_mtj(i_mtj),
+		.v_mtj(v_mtj),
+		.v_m_z(mz),
+		.h_ext_x(h_ext_x),
+		.h_ext_y(h_ext_y),
+		.h_ext_z(h_ext_z) );
+
+
+analog function real get_r;
+        // Julliere, M. (1975).
+        // Tunneling between ferromagnetic films.
+        // Physics Letters A, 54(3), 225–226.
+        // https://doi.org/10.1016/0375-9601(75)90174-7
+
+        // Lee, H., et.al.
+        // Analysis and Compact Modeling of Magnetic Tunnel Junctions Utilizing
+        // Voltage-Controlled Magnetic Anisotropy. 
+        // IEEE Transactions on Magnetics, 54(4).
+        // https://doi.org/10.1109/TMAG.2017.2788010
+	input m_z;
+	real m_z;
+	begin
+        	get_r = p_r_p*(1 + p_tmr/(p_tmr + 2))/(1 - p_tmr/(p_tmr + 2)*m_z);
+	end
+endfunction
+
+
+analog begin : mtj_behav
+
+	@(initial_step) begin
+		$strobe("\**********************************************\n\n");
+	end
+
+
+	// conduction
+	r_mtj = get_r(V(mz));
+	I(i_mtj) <+ I(fl, pl);
+	V(v_mtj) <+ V(fl, pl);
+
+	// I(fl, pl) <+ V(fl, pl)/r_mtj;
+	V(fl, pl) <+ I(fl, pl)*r_mtj;
+
+end
+
+endmodule
+
+`endif

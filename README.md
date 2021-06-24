@@ -16,11 +16,12 @@
 * Fernando Garcia Redondo, fernando.garciaredondo@arm.com
 * Pranay Prabhat
 * Mudit Bhargava
+
 Thanks to Cyrille Dray and Milos Milosavljevic for his helpful discussions.
 
 The following frameworks have been presented at
 * ***A Compact Model for Scalable MTJ Simulation***, IEEE International Conference on Synthesis, Modeling, Analysis and Simulation Methods and Applications to Circuit Design, SMACD 2021. [link to manuscript](https://arxiv.org/abs/2106.04976)
-* ***A Fokker-Planck Solver to Model MTJ Stochasticity*** European Solid-State Device Research Conference, ESSDERC 2021.
+* ***A Fokker-Planck Solver to Model MTJ Stochasticity*** European Solid-State Device Research Conference, ESSDERC 2021. [link to manuscript](https://arxiv.org/abs/2106.12304)
 
 This repository contains a framework for the characterization
 and analysis of MRAM behavior including stochasticity, 

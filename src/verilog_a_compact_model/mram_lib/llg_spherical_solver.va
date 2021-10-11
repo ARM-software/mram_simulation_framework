@@ -18,7 +18,7 @@
 // pl: pinned layer
 
 // Behavioral Model for a single magnetic tunnel junction
-module LLGs_va (i_mtj, v_mtj, v_m_z, h_ext_x, h_ext_y, h_ext_z);
+module LLGs_va (i_pl_fl, v_pl_fl, v_m_z, h_ext_x, h_ext_y, h_ext_z);
 
 // functions
 `include "vectorial_fn.va"
@@ -31,15 +31,15 @@ module LLGs_va (i_mtj, v_mtj, v_m_z, h_ext_x, h_ext_y, h_ext_z);
 
 ground gnd;
 
-input i_mtj, v_mtj;
+input i_pl_fl, v_pl_fl;
 output v_m_z;
 input h_ext_x, h_ext_y, h_ext_z;
 
 // electrical variables
 electrical h_ext_x, h_ext_y, h_ext_z;
 // current, voltage
-current i_mtj;
-voltage v_mtj;
+current i_pl_fl;
+voltage v_pl_fl;
 voltage v_m_z;
 
 // seed
@@ -416,9 +416,9 @@ endfunction
 
 // VCMA
 analog function real get_h_vcma;
-	input v_mtj, ms;
+	input v_pl_fl, ms, mz;
 	output hz;
-	real v_mtj, ms,
+	real v_pl_fl, ms, mz,
 		hz;
 	begin
 		// Get VCMA  vector.
@@ -427,11 +427,15 @@ analog function real get_h_vcma;
 		// Torque Magnetic Tunnel Junction.
 		// IEEE Access, 8, 50792–50800.
 		// https://doi.org/10.1109/ACCESS.2020.2980073
+
 		if (!p_do_vcma) begin
 			hz = 0.0;
 		end
 		else begin
-			hz = -2 * p_xi * v_mtj / (p_t_fl * p_t_ox * c_U0 * ms);
+			// note instead of -2 * p_xi...
+			// that is as the voltage v_pl_fl refers PL/FL voltage,
+			// and not FL/PL voltage as in the paper references
+			hz = 2 * p_xi * v_pl_fl * mz / (p_t_fl * p_t_ox * c_U0 * ms);
 		end
 		// dummyV
 		get_h_vcma = 0;
@@ -782,7 +786,7 @@ analog begin : LLGs_behav
 	// uniaxial anisotropy
 	fn = get_h_vcma(
 		// inputs
-		V(v_mtj), ms,
+		V(v_pl_fl), ms, m_z,
 		// outputs
 		h_inc_aux_z);
 	h_eff_z = h_eff_z + h_inc_aux_z;
@@ -811,7 +815,7 @@ analog begin : LLGs_behav
 		_eps_simple_num, _eps_simple_den0, _eps_simple_den1);
 	// beta computation as in OOMMF
 	// beta units are [A/m]
-	beta = I(i_mtj) * _stt_scale_fac;
+	beta = I(i_pl_fl) * _stt_scale_fac;
 	// both eps and eps prime contributions
 	// h_stt components in [A/m]
 	h_stt_1_x = beta * (epsilon * pl_x);

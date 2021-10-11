@@ -939,7 +939,7 @@ class LLG:
                          (self.t_fl * c_U0 * self.ms)
                          ])
 
-    def get_h_vcma(self, v_mtj):
+    def get_h_vcma(self, v_mtj, m_cart):
         """Get VCMA  vector.
 
         Zhang, K., et. al.
@@ -948,17 +948,27 @@ class LLG:
         IEEE Access, 8, 50792–50800.
         https://doi.org/10.1109/ACCESS.2020.2980073
         """
+        #  note instead of -2 * p_xi...
+        #  that is as the voltage v_mtj refers PL/FL voltage,
+        #  and not FL/PL voltage as in the paper references
+
+        # Torunbalci, M. et.al.
+        # Modular Compact Modeling of MTJ Devices.
+        # IEEE Transactions on Electron Devices, 65(10), 4628–4634.
+        # https://doi.org/10.1109/TED.2018.2863538
+        # where the PL is considered the positive terminal
+
         # WORKAROUND to validate vcma, see oommf validation
         # return np.array([0.,
         #                  0.,
-        #                  -2 * self.xi * self.i_amp*self.r_p / (
+        #                  2 * self.xi * self.i_amp*self.r_p * m_cart[2] / (
         #                      self.t_fl * self.t_ox * c_U0 * self.ms)
         #                  ])
         if not self.do_vcma:
             return np.zeros(3)
         return np.array([0.,
                          0.,
-                         -2 * self.xi * v_mtj / (
+                         2 * self.xi * v_mtj * m_cart[2] / (
                              self.t_fl * self.t_ox * c_U0 * self.ms)
                          ])
 
@@ -1090,7 +1100,7 @@ class LLG:
         h_eff_cart += self.get_h_demag(m_cart)
         h_eff_cart += self.get_h_exchange()
         h_eff_cart += self.get_h_una(m_cart)
-        h_eff_cart += self.get_h_vcma(v_mtj)
+        h_eff_cart += self.get_h_vcma(v_mtj, m_cart)
 
         # wienner process
         # similar to what SPICE solvers do

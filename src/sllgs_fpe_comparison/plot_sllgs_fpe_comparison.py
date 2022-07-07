@@ -26,43 +26,47 @@ import sllgs_importer as sllgs_i
 # these should match the ones you used for the s-LLGS simulation
 ######################################################################
 # Define a macrospin mesh (i.e. one discretisation cell).
-z0 = 1
-initial_m = None  # np.array([0.01, 0.01, z0])  # vector in x direction
-diam = 50e-9
-t_fl = 1.e-9
-temperature = 300
-k_i_0 = 1.0e-3
-alpha = 0.01  # Gilbert damping
-Ms = 1.2e6  # magnetisation saturation (A/m)
+Z0 = 1
+INITIAL_M = None  # np.array([0.01, 0.01, z0])  # vector in x direction
+DIAM = 50e-9
+T_FL = 1.e-9
+TEMP = 300
+K_I_0 = 1.0e-3
+ALPHA = 0.01  # Gilbert damping
+MS = 1.2e6  # magnetisation saturation (A/m)
 # Zeeman (external field) validation
-Hext = (0., 0., 0.)  # low external magnetic field (A/m) (test anisotropy)
+HEXT = (0., 0., 0.)  # low external magnetic field (A/m) (test anisotropy)
 # stt params
-eps_prime = 0.0                 # [FITTING] constant
+EPS_PRIME = 0.0                 # [FITTING] constant
 P = 0.75
-Lambda = 1.
+LAMBDA = 1.
 
 ###################################
-sllgs_files = [
+SLLGS_FILES = [
     'path_to_csv_file_exported_by_stochastic_multithread_simulation.py',
 ]
-sllgs_time_files = [
+SLLGS_TIME_FILES = [
     'path_to_time_csv_file_exported_by_stochastic_multithread_simulation.py',
 ]
-I0_uA = [50]*len(sllgs_files)
-t_delays_ns = [5]*len(sllgs_files)
+I0_UA = [50]*len(SLLGS_FILES)
+T_DELAYS_NS = [5]*len(SLLGS_FILES)
 
-ps_sslgs = [None] * len(t_delays_ns)
-time_sslgs = [None] * len(t_delays_ns)
-ps_fp = [None] * len(t_delays_ns)
-time_fp = [None] * len(t_delays_ns)
-compute_analytical_manual = False
-plot_intermediate = False
-colors = itertools.cycle(mcolors.TABLEAU_COLORS)
+ps_sslgs = [None] * len(T_DELAYS_NS)
+time_sslgs = [None] * len(T_DELAYS_NS)
+ps_fp = [None] * len(T_DELAYS_NS)
+time_fp = [None] * len(T_DELAYS_NS)
+COMPUTE_ANALYTICAL_MANUAL = False
+PLOT_INTERMEDIATE = False
+
+
+COLORS = itertools.cycle(mcolors.TABLEAU_COLORS)
+MARKERS = itertools.cycle(
+        ('o', '*', 'd', '1', ',', '+', '.', 's', 'X', 'x'))
 
 
 def test_h_ext(t):
     """Set H_ext."""
-    return np.array(Hext)
+    return np.array(HEXT)
 
 
 def test_current(t):
@@ -71,30 +75,32 @@ def test_current(t):
 
 
 # get Ic, tau_d etc
-llg_o = sllgs_solver.LLG(w_fl=diam, l_fl=diam, t_fl=t_fl,
-                ms=Ms,
-                alpha=alpha,
-                k_i_0=k_i_0,
-                # thermal_stability_0=thermal_stability_0,
-                temperature=temperature,
-                stt_mode='stt_oommf_simple',
-                p=P,
-                lambda_s=Lambda,
-                eps_prime=eps_prime,
-                # not include temperature noise,
-                # and do not force its effects on the theta_0
-                do_thermal=False,
-                do_fake_thermal=False,
-                do_theta_windowing=False,
-                m_init=initial_m,
-                # shape_ani_demag_mode=0,
-                # theta_init=0.09,
-                theta_pl=0.0,                  # [rad] pinned layer theta
-                phi_pl=0.0,                    # [rad] pinned layer phi
-                h_ext_cart=test_h_ext,
-                i_amp_fn=test_current)
+LLG_O = sllgs_solver.LLG(w_fl=DIAM, l_fl=DIAM, t_fl=T_FL,
+                         ms=MS,
+                         alpha=ALPHA,
+                         k_i_0=K_I_0,
+                         # thermal_stability_0=thermal_stability_0,
+                         temperature=TEMP,
+                         stt_mode='stt_oommf_simple',
+                         p=P,
+                         lambda_s=LAMBDA,
+                         eps_prime=EPS_PRIME,
+                         # not include temperature noise,
+                         # and do not force its effects on the theta_0
+                         do_thermal=False,
+                         do_fake_thermal=False,
+                         do_theta_windowing=False,
+                         m_init=INITIAL_M,
+                         # shape_ani_demag_mode=0,
+                         # theta_init=0.09,
+                         # [rad] pinned layer theta
+                         theta_pl=0.0,
+                         # [rad] pinned layer phi
+                         phi_pl=0.0,
+                         h_ext_cart=test_h_ext,
+                         i_amp_fn=test_current)
 
-print(f'P: {P}, P/2: {P/2}, eps: {llg_o.get_epsilon_stt(1)}')
+print(f'P: {P}, P/2: {P/2}, eps: {LLG_O.get_epsilon_stt(1)}')
 
 ##############################################################################
 # importing raw data
@@ -102,10 +108,12 @@ print(f'P: {P}, P/2: {P/2}, eps: {llg_o.get_epsilon_stt(1)}')
 ##############################################################################
 
 
-def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
-                              compute_analytical_manual=False,
-                              plot_intermediate=True,
-                              dim_points=1000):
+def analyze_s_llgs_tolerances(
+        data_file, time_file, t_delay, I0_uA,
+        llg_o=LLG_O,
+        compute_analytical_manual=False,
+        plot_intermediate=True,
+        dim_points=1000):
     """Analyze s-LLGS."""
     # get all data, note it is not delayed anymore
     sllgs_time, sllgs_data, sllgs_sw_idx, sllgs_sw_ps = sllgs_i.process_sllgs_data(
@@ -121,7 +129,7 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
     #         }
     ########################################################################
     # Initializations
-    I0 = np.sign(z0)*I0_uA*1e-6
+    I0 = np.sign(Z0)*I0_uA*1e-6
 
     lin_space_z = False
     L0_max = 200
@@ -154,12 +162,13 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
     print(f't_final: {xlim}')
     print(f'tau: {tau} i: {i}')
     lin_space_z = False
-    rho_0_at_pi = z0 < 0
+    rho_0_at_pi = llg_o.theta_init > np.pi/2
 
+    # sllgs_data has (data, time)
     s_rho_0_fit = np.polynomial.legendre.legfit(
         x=np.cos(theta_axis),
         # sllgs is normalized to 1 already
-        y=sllgs_data[:, 0][::-1],
+        y=sllgs_data[0][:, 0][::-1],
         deg=L0_max)
     _, rho_0_a, s_rho_0_a = analytical.get_state_rho_0(
         delta=delta,
@@ -192,7 +201,7 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
     fig, axs = plt.subplots(1, 1,
                             figsize=(8, 6))
     axs.plot(theta_axis,
-             sllgs_data[:, 0][::-1],
+             sllgs_data[0][:, 0][::-1],
              '+-',
              label='sllgs')
     axs.plot(fp_theta,
@@ -279,10 +288,10 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
         # cmap = plt.cm.PuBu_r
 
         # s-LLGS
-        v_min = np.max([1e-8, np.min(sllgs_data)])
-        v_max = np.max(sllgs_data)
+        v_min = np.max([1e-8, np.min(sllgs_data[0])])
+        v_max = np.max(sllgs_data[0])
 
-        sllgs_data[sllgs_data < v_min] = v_min
+        sllgs_data[0][sllgs_data[0] < v_min] = v_min
         fp_data_a[fp_data_a < v_min] = v_min
         fp_data_b[fp_data_b < v_min] = v_min
 
@@ -290,7 +299,7 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
         ax0 = axs[0]
         ax0.pcolormesh(1e9*sllgs_time,
                        np.pi-fp_theta,
-                       sllgs_data,
+                       sllgs_data[0],
                        # vmin=v_min,
                        norm=mcolors.LogNorm(vmin=v_min,
                                             vmax=v_max),
@@ -417,73 +426,79 @@ def analyze_s_llgs_tolerances(data_file, time_file, t_delay, I0_uA,
             'fp_ps_manual': fp_a_ps_manual,
             'sllgs_time': sllgs_time,
             'sllgs_theta': theta_axis,
-            'sllgs_data': sllgs_data,
+            'sllgs_data': sllgs_data[0],
             'sllgs_ps': sllgs_sw_ps
             }
+
+
+def plot_results(sllgs_files=SLLGS_FILES,
+                 sllgs_time_files=SLLGS_TIME_FILES,
+                 t_delays_ns=T_DELAYS_NS,
+                 plot_intermediate=PLOT_INTERMEDIATE,
+                 I0s_uA=I0_UA,
+                 llg_os=LLG_O,
+                 compute_analytical_manual=COMPUTE_ANALYTICAL_MANUAL,
+                 ):
+    """Plot results for comparison."""
+    if compute_analytical_manual:
+        ps_fp_manual = [None] * len(t_delays_ns)
+
+    for idx in range(len(sllgs_files)):
+        print('---------------------', idx)
+        data = analyze_s_llgs_tolerances(
+            data_file=sllgs_files[idx],
+            time_file=sllgs_time_files[idx],
+            t_delay=t_delays_ns[idx]*1e-9,
+            I0_uA=I0s_uA[idx],
+            llg_o=llg_os[idx],
+            compute_analytical_manual=compute_analytical_manual,
+            plot_intermediate=plot_intermediate)
+        ps_sslgs[idx] = data['sllgs_ps']
+        time_sslgs[idx] = data['sllgs_time']
+        ps_fp[idx] = data['fp_ps']
+        time_fp[idx] = data['fp_time']
+        if compute_analytical_manual:
+            ps_fp_manual[idx] = data['fp_ps_manual']
+
+    fig, ax = plt.subplots(1, 1,
+                           sharex=True,
+                           figsize=(8, 6))
+    for idx in range(len(sllgs_files)):
+        print('---------------------', idx)
+        color = next(COLORS)
+        marker = next(MARKERS)
+        np.savetxt(f'dummy_sllgs_wer_{idx}.csv',
+                   np.array([time_sslgs[idx], 1-ps_sslgs[idx]]))
+        ax.plot(1e9*time_sslgs[idx], 1-ps_sslgs[idx],
+                # label=sllgs_files[idx].split('/')[-1],
+                label='10000 s-LLGS walks',
+                marker=marker,
+                color=color)
+        ax.plot(1e9*time_fp[idx],
+                1-ps_fp[idx],
+                '--',
+                # label=f'fp {sllgs_files[idx]}',
+                label='Fokker-Plank',
+                color=color)
+        if compute_analytical_manual:
+            ax.plot(1e9*time_fp[idx],
+                    1-ps_fp_manual[idx],
+                    ':',
+                    # label=sllgs_files[idx],
+                    color=color)
+    # ax.plot(1e9*fp_time, 1-fp_b_ps, label='fpb')
+    # ax.plot(1e9*time, 1-sw_ps, '--', label='sllgs')
+    ax.set_title('WER over time')
+    ax.set_xlabel('time [a.u.]')
+    ax.set_ylabel('WER')
+    ax.set_yscale('log', base=10)
+    ax.legend()
+    ax.grid()
+    plt.show()
 
 
 ################################
 # comparison
 ################################
-
-if compute_analytical_manual:
-    ps_fp_manual = [None] * len(t_delays_ns)
-
-plot_idx = 3
-for idx in range(len(sllgs_files)):
-    # if idx%4 != plot_idx:
-    #     continue
-    print('---------------------', idx)
-    data = analyze_s_llgs_tolerances(
-        sllgs_files[idx],
-        sllgs_time_files[idx],
-        t_delays_ns[idx]*1e-9,
-        I0_uA[idx],
-        compute_analytical_manual=compute_analytical_manual,
-        plot_intermediate=plot_intermediate)
-    ps_sslgs[idx] = data['sllgs_ps']
-    time_sslgs[idx] = data['sllgs_time']
-    ps_fp[idx] = data['fp_ps']
-    time_fp[idx] = data['fp_time']
-    if compute_analytical_manual:
-        ps_fp_manual[idx] = data['fp_ps_manual']
-
-fig, ax = plt.subplots(1, 1,
-                       sharex=True,
-                       figsize=(8, 6))
-markers = itertools.cycle(
-    ('o', '*', 'd', '1', ',', '+', '.', 's', 'X', 'x'))
-for idx in range(len(sllgs_files)):
-    # if idx%4 != plot_idx:
-    #     continue
-    print('---------------------', idx)
-    color = next(colors)
-    marker = next(markers)
-    np.savetxt(f'dummy_sllgs_wer_{idx}.csv',
-               np.array([time_sslgs[idx], 1-ps_sslgs[idx]]))
-    ax.plot(1e9*time_sslgs[idx], 1-ps_sslgs[idx],
-            # label=sllgs_files[idx].split('/')[-1],
-            label='10000 s-LLGS walks',
-            marker=marker,
-            color=color)
-    ax.plot(1e9*time_fp[idx],
-            1-ps_fp[idx],
-            '--',
-            # label=f'fp {sllgs_files[idx]}',
-            label='Fokker-Plank',
-            color=color)
-    if compute_analytical_manual:
-        ax.plot(1e9*time_fp[idx],
-                1-ps_fp_manual[idx],
-                ':',
-                # label=sllgs_files[idx],
-                color=color)
-# ax.plot(1e9*fp_time, 1-fp_b_ps, label='fpb')
-# ax.plot(1e9*time, 1-sw_ps, '--', label='sllgs')
-ax.set_title('WER over time')
-ax.set_xlabel('time [a.u.]')
-ax.set_ylabel('WER')
-ax.set_yscale('log', base=10)
-ax.legend()
-ax.grid()
-plt.show()
+if __name__ == "__main__":
+    plot_results()

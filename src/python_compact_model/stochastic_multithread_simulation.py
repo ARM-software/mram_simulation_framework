@@ -317,3 +317,20 @@ if __name__ == '__main__':
     print('\t[experiment] reproduce results with:')
     for k in args.__dict__:
         print('\t\t', k, ': ', args.__dict__[k])
+
+
+def test():
+
+    run_walks(
+        solve_normalized=True,
+        method='stratonovich_heun',
+        suffix='rand_walk',
+        max_step=1e-13,
+        I0=40e-6,
+        alpha=0.01,
+        t_delay=3e-9,
+        t_pulse=60e-9,
+        total_th_sims=int(1e2),
+        cores=2,
+        plot_walks=True
+    )

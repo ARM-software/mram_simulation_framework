@@ -1223,7 +1223,7 @@ class LLG:
         h_eff_cart += self.get_h_demag(m_cart)
         h_eff_cart += self.get_h_exchange()
         h_eff_cart += self.get_h_una(m_cart)
-        h_eff_cart += self.get_h_vcma(v_mtj)
+        h_eff_cart += self.get_h_vcma(v_mtj, m_cart)
 
         # wienner process
         # similar to what SPICE solvers do

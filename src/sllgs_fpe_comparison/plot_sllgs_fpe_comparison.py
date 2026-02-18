@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import itertools
 import matplotlib.colors as mcolors
 
-import fooker_plank.analytical as analytical
+import fokker_plank.analytical.analytical as analytical
 import python_compact_model.sllgs_solver as sllgs_solver
 import sllgs_importer as sllgs_i
 
@@ -51,17 +51,13 @@ SLLGS_TIME_FILES = [
 I0_UA = [50]*len(SLLGS_FILES)
 T_DELAYS_NS = [5]*len(SLLGS_FILES)
 
-ps_sslgs = [None] * len(T_DELAYS_NS)
-time_sslgs = [None] * len(T_DELAYS_NS)
-ps_fp = [None] * len(T_DELAYS_NS)
-time_fp = [None] * len(T_DELAYS_NS)
 COMPUTE_ANALYTICAL_MANUAL = False
 PLOT_INTERMEDIATE = False
 
 
 COLORS = itertools.cycle(mcolors.TABLEAU_COLORS)
 MARKERS = itertools.cycle(
-        ('o', '*', 'd', '1', ',', '+', '.', 's', 'X', 'x'))
+    ('o', '*', 'd', '1', ',', '+', '.', 's', 'X', 'x'))
 
 
 def test_h_ext(t):
@@ -116,8 +112,9 @@ def analyze_s_llgs_tolerances(
         dim_points=1000):
     """Analyze s-LLGS."""
     # get all data, note it is not delayed anymore
-    sllgs_time, sllgs_data, sllgs_sw_idx, sllgs_sw_ps = sllgs_i.process_sllgs_data(
-        data_file, time_file, t_delay, dim_points)
+    (sllgs_time, sllgs_data,
+            sllgs_sw_idx, sllgs_sw_ps) = sllgs_i.process_sllgs_data(
+        data_file, time_file, 0, dim_points)
     theta_axis = np.linspace(np.pi, 0, dim_points)
 
     # debug sllgs
@@ -164,11 +161,16 @@ def analyze_s_llgs_tolerances(
     lin_space_z = False
     rho_0_at_pi = llg_o.theta_init > np.pi/2
 
+    rho_0_time_idx = np.searchsorted(sllgs_time, t_delay+t_delay/50)
+    print(f'\n->fitting rho at time {sllgs_time[rho_0_time_idx]}\n')
+    print(f'\n->mean: {np.mean(sllgs_data[0][:, rho_0_time_idx])}')
+    print(f'\n->std: {np.std(sllgs_data[0][:, rho_0_time_idx])}')
+
     # sllgs_data has (data, time)
     s_rho_0_fit = np.polynomial.legendre.legfit(
         x=np.cos(theta_axis),
         # sllgs is normalized to 1 already
-        y=sllgs_data[0][:, 0][::-1],
+        y=sllgs_data[0][:, rho_0_time_idx][::-1],
         deg=L0_max)
     _, rho_0_a, s_rho_0_a = analytical.get_state_rho_0(
         delta=delta,
@@ -201,7 +203,7 @@ def analyze_s_llgs_tolerances(
     fig, axs = plt.subplots(1, 1,
                             figsize=(8, 6))
     axs.plot(theta_axis,
-             sllgs_data[0][:, 0][::-1],
+             sllgs_data[0][:, rho_0_time_idx][::-1],
              '+-',
              label='sllgs')
     axs.plot(fp_theta,
@@ -443,6 +445,11 @@ def plot_results(sllgs_files=SLLGS_FILES,
     if compute_analytical_manual:
         ps_fp_manual = [None] * len(t_delays_ns)
 
+    ps_sslgs = [None] * len(t_delays_ns)
+    time_sslgs = [None] * len(t_delays_ns)
+    ps_fp = [None] * len(t_delays_ns)
+    time_fp = [None] * len(t_delays_ns)
+
     for idx in range(len(sllgs_files)):
         print('---------------------', idx)
         data = analyze_s_llgs_tolerances(
@@ -469,9 +476,9 @@ def plot_results(sllgs_files=SLLGS_FILES,
         marker = next(MARKERS)
         np.savetxt(f'dummy_sllgs_wer_{idx}.csv',
                    np.array([time_sslgs[idx], 1-ps_sslgs[idx]]))
-        ax.plot(1e9*time_sslgs[idx], 1-ps_sslgs[idx],
-                # label=sllgs_files[idx].split('/')[-1],
-                label='10000 s-LLGS walks',
+        ax.plot(1e9*(time_sslgs[idx])-t_delays_ns[idx], 1-ps_sslgs[idx],
+                label=sllgs_files[idx].split('/')[-1],
+                # label='10000 s-LLGS walks',
                 marker=marker,
                 color=color)
         ax.plot(1e9*time_fp[idx],
@@ -494,6 +501,7 @@ def plot_results(sllgs_files=SLLGS_FILES,
     ax.set_yscale('log', base=10)
     ax.legend()
     ax.grid()
+    # plt.savefig('wer.png')
     plt.show()
 
 

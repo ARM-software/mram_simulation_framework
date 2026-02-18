@@ -331,7 +331,7 @@ class AdvectionDiffusionModel(object):
         system it is equal to the identity matrix.
         """
         a1 = 0 if self.left_flux is None else 1
-        aJ = 0 if self.left_flux is None else 1
+        aJ = 0 if self.right_flux is None else 1
         diagonals = np.ones(self.mesh.J)
         diagonals[0] = a1
         diagonals[-1] = aJ

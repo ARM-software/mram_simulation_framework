@@ -382,11 +382,20 @@ class LLG:
         self.l_fl = l_fl
         self._area = np.pi/4*self.w_fl*self.l_fl
         self._volume = self._area*self.t_fl
+        print(f'\t[debug] t_fl    {self.t_fl}')
+        print(f'\t[debug] t_ox    {self.t_ox}')
+        print(f'\t[debug] w_fl    {self.w_fl}')
+        print(f'\t[debug] l_fl    {self.l_fl}')
+        print(f'\t[debug] _area   {self._area}')
+        print(f'\t[debug] _volume {self._volume}')
 
         # magnetic properties
         self.alpha = alpha
         self._U0_gamma_0_alpha = c_U0 * c_gamma_0 / (1 + self.alpha*self.alpha)
+        print(f'U0gamma0alpha: {self._U0_gamma_0_alpha}')
         self.ms = ms
+        print(f'\t[debug] alpha: {self.alpha}')
+        print(f'\t[debug] ms: {self.ms}')
         # Full anisotropy:
         # Watanabe, K.,
         # Shape anisotropy revisited in single-digit nanometer magnetic
@@ -414,8 +423,10 @@ class LLG:
                 z_0 = 1
             else:
                 z_0 = -1
-        print(f'z_0: {z_0}')
+        print(f'\t[debug] z_0: {z_0}')
+        print(f'\t[debug] _volume: {self._volume}')
         h_k = 2 * self.k_i * np.abs(z_0) / (self.t_fl * c_U0 * self.ms)
+        print(f'\t[debug] hk_mode: {self.hk_mode}')
         if self.hk_mode == 0:
             h_k += -self.ms * \
                 (self.shape_ani_demag_n[2] -
@@ -573,6 +584,7 @@ class LLG:
                 _lamb_FL2*np.sqrt((_lamb_PL2-1)/(_lamb_FL2-1))
         elif self.stt_mode == 'stt_oommf_simple':
             self.lambda_s = lambda_s
+            print(f'\t[debug] lambda_s: {self.lambda_s}')
             self.p = p
             self._eps_simple_num = p*lambda_s*lambda_s
             self._eps_simple_den0 = lambda_s*lambda_s + 1
@@ -1309,7 +1321,7 @@ class LLG:
             saved_max_step = max_step
 
         # max_step/tstep checks
-        if not scipy_ivp and max_step is None or max_step == np.inf:
+        if not scipy_ivp and (max_step is None or max_step == np.inf):
             print('[error] Max step should be specified when not using '
                   'scipy_ivp mode')
             return None
@@ -1330,8 +1342,11 @@ class LLG:
             _g = self._g_cart
             y0 = self.m_cart_init
             method_info = ', cartesian coordinates'
+        if scipy_ivp and (max_step == np.inf or max_step is None):
+            save_every = 1
+        else:
+            save_every = int(saved_max_step/max_step)
 
-        save_every = int(saved_max_step/max_step)
         # normalization
         # do time normalization
         if self.solve_normalized:
@@ -1415,6 +1430,7 @@ class LLG:
             2. * self.alpha * self.temperature * c_KB /
             (c_U0 * th_gamma * self.ms * self._volume))
         v_cart = np.array([_sig, _sig, _sig])
+        print(f'[debug] v_cart: {v_cart}')
 
         # different options
         while t_idx < n_t:

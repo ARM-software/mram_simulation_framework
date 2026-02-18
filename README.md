@@ -65,7 +65,7 @@ Please, read the full description at [MRAM Framework Description](./doc/README.m
 	* `fokker_plank`
 		* [README.md](./fokker_plank/README.md) for the MRAM Fokker-Plank description
 		* `fvm`
-			* `fvm_classes.py` Finite Volume Method classes, see [FVM](https://github.com/danieljfarrell/FVM)
+			* `fvm_classes.py` Finite Volume Method classes, see [FVM](https://github.com/danieljfarrell/FVM and [FVM2](https://github.com/Fratorhe/FVM/))
 			* `mtj_fp_fvm.py` MTJ Fokker-Plank FVM solver
 		* `analytical`
 			* `analytical.py` MTJ Fokker-Plank Analytical solver

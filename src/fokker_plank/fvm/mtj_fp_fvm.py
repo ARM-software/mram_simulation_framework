@@ -12,13 +12,12 @@ Fokker-Plank or advection-diffusion for
 MTJ magnetization probability evolution.
 """
 
+import fvm_lib.fvm_classes as fvm
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import sparse
 from scipy.sparse import linalg
-
-import fvm_lib.fvm_classes as fvm
 
 np.random.seed(seed=1)
 
@@ -76,9 +75,9 @@ def solve_mtj_fp(
         rho_init = np.exp(-delta * np.sin(_theta_x) * np.sin(_theta_x)) * np.heaviside(
             mesh.cells, 0.5
         )
-        rho_init /= np.trapz(rho_init, x=mesh.cells)
+        rho_init /= np.trapezoid(rho_init, x=mesh.cells)
     # w_init = w_init[::-1]
-    print(f"\trho_init area: {np.trapz(rho_init, x=mesh.cells)}")
+    print(f"\trho_init area: {np.trapezoid(rho_init, x=mesh.cells)}")
 
     model = fvm.AdvectionDiffusionModel(
         faces, a, d, t_step, discretization=discretization
@@ -111,13 +110,13 @@ def solve_mtj_fp(
         rho = np.zeros((t0.shape[0], mesh.cells.shape[0]))
         area = np.zeros(t0.shape[0])
         rho[0] = rho_init
-        area[0] = np.trapz(rho[0], x=mesh.cells)
+        area[0] = np.trapezoid(rho[0], x=mesh.cells)
         for i in range(1, t0.shape[0]):
             d = (identity + t_step * (1 - theta) * alpha * M) * rho[i - 1] + beta
             rho[i] = linalg.spsolve(A, d)
             # normalization not needed, flux is kept
         # PS/PNS
-        ps = np.trapz(rho.T[mesh.cells < 0], x=mesh.cells[mesh.cells < 0], axis=0)
+        ps = np.trapezoid(rho.T[mesh.cells < 0], x=mesh.cells[mesh.cells < 0], axis=0)
         t_sw = t0[np.argmax(ps > 0.5)]
     else:
         rho = np.array(rho_init)
@@ -127,7 +126,9 @@ def solve_mtj_fp(
             d = (identity + t_step * (1 - theta) * alpha * M) * rho + beta
             rho_next = linalg.spsolve(A, d)
             # normalization not needed, flux is kept
-            ps = np.trapz(rho.T[mesh.cells < 0], x=mesh.cells[mesh.cells < 0], axis=0)
+            ps = np.trapezoid(
+                rho.T[mesh.cells < 0], x=mesh.cells[mesh.cells < 0], axis=0
+            )
             if t_sw == 0 and ps > 0.5:
                 t_sw = t_step * i
             # update variable by switching
@@ -190,9 +191,9 @@ def simple_test():
     colors = cmap.colors  # type: list
     # plot_3d_evolution(p_imp_0, t0, z0, plot_res=1e6,
     #                   title='ro implicit matmult')
-    pt = np.trapz(rho, z0, axis=0)
-    ps = np.trapz(y=rho[z0 < 0], x=z0[z0 < 0], axis=0) / pt
-    pns = np.trapz(y=rho[z0 >= 0], x=z0[z0 >= 0], axis=0) / pt
+    pt = np.trapezoid(rho, z0, axis=0)
+    ps = np.trapezoid(y=rho[z0 < 0], x=z0[z0 < 0], axis=0) / pt
+    pns = np.trapezoid(y=rho[z0 >= 0], x=z0[z0 >= 0], axis=0) / pt
 
     ax.plot(t0, ps, "--", color=colors[0], alpha=0.5, label=f"ps i: {i0}")
     ax.plot(t0, pns, label=f"pns i: {i0}")

@@ -16,14 +16,13 @@ follows the reference defined in the respective method.
 """
 
 import time
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.integrate._ivp import rk, base
-from scipy.integrate import solve_ivp
-from scipy.stats import maxwell
 
 import ivp_lib.ode_solver_custom_fn as custom_ode
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.integrate import solve_ivp
+from scipy.integrate._ivp import base, rk
+from scipy.stats import maxwell
 
 # gyromagnetic ratio
 c_gamma_0 = 1.76e11  # [rad/s/T]
@@ -42,83 +41,84 @@ c_KB = 1.3806503e-23
 c_UB = c_gamma_0 * c_hbar / 2
 
 # custom fitting
-loc_theta_0_coeff = 1/3.
+loc_theta_0_coeff = 1 / 3.0
 
 
 def eq_info():
     """Equation info."""
-    print('\t* Considered energies:')
-    print('\t\ta) Zeeman energy (due to external field)')
-    print('\t\tb) Uniaxial anisotropy energy (interfacial, see bellow)')
-    print('\t\tc) Thermal energy')
-    print('\t\td) Shape anisotropy energy')
-    print('\n\t\tZeeman energy, uniaxial anisotropy and thermal energy')
-    print('\t\tcontribute to Hext.')
+    print("\t* Considered energies:")
+    print("\t\ta) Zeeman energy (due to external field)")
+    print("\t\tb) Uniaxial anisotropy energy (interfacial, see bellow)")
+    print("\t\tc) Thermal energy")
+    print("\t\td) Shape anisotropy energy")
+    print("\n\t\tZeeman energy, uniaxial anisotropy and thermal energy")
+    print("\t\tcontribute to Hext.")
 
-    print('\n\t* Full anisotropy:')
-    print('\tWatanabe, K., ')
-    print('\tShape anisotropy revisited in single-digit nanometer magnetic')
-    print('\ttunnel junctions.')
-    print('\tNature Communications, 9(1), 5–10.')
-    print('\thttps://doi.org/10.1038/s41467-018-03003-7')
+    print("\n\t* Full anisotropy:")
+    print("\tWatanabe, K., ")
+    print("\tShape anisotropy revisited in single-digit nanometer magnetic")
+    print("\ttunnel junctions.")
+    print("\tNature Communications, 9(1), 5–10.")
+    print("\thttps://doi.org/10.1038/s41467-018-03003-7")
 
-    print('\n\t* Computation of LLGS equation following'
-          'OOMMF Oxs_SpinXferEvolve')
-    print('\thttps://math.nist.gov/oommf/doc/userguide20a2/userguide/'
-          'Standard_Oxs_Ext_Child_Clas.html')
-    print('\t with the extra in-plane terms')
-    print('\t see OOMMF for the value of the different.')
+    print("\n\t* Computation of LLGS equation followingOOMMF Oxs_SpinXferEvolve")
+    print(
+        "\thttps://math.nist.gov/oommf/doc/userguide20a2/userguide/"
+        "Standard_Oxs_Ext_Child_Clas.html"
+    )
+    print("\t with the extra in-plane terms")
+    print("\t see OOMMF for the value of the different.")
 
-    print('\n\tLLG equation (with all stt terms) at eq 1.3')
-    print('\tSwitching distributions for perpendicular spin-torque devices')
-    print('\twithin the macrospin approximation.')
-    print('\tIEEE Transactions on Magnetics, 48(12), 4684–4700.')
-    print('\thttps://doi.org/10.1109/TMAG.2012.2209122')
+    print("\n\tLLG equation (with all stt terms) at eq 1.3")
+    print("\tSwitching distributions for perpendicular spin-torque devices")
+    print("\twithin the macrospin approximation.")
+    print("\tIEEE Transactions on Magnetics, 48(12), 4684–4700.")
+    print("\thttps://doi.org/10.1109/TMAG.2012.2209122")
 
-    print('\t# (1+alpha^2)dm/dt = #LLG ')
-    print('\t#                    # Gilbert damping model: ')
-    print('\t#                    -gamma c_U0 m^H_eff')
-    print('\t#                    # Gilbert damping model: ')
-    print('\t#                    -alpha gamma c_U0 m^m^H_eff')
-    print('\t#                    # T_CPP (torque current perp. plane) ')
-    print('\t#                    # Slonczewski Model: ')
-    print('\t#                    -gamma nu I_ c_hbar / (2 c_E V) m^m^mp')
-    print('\t#                    +alpha gamma c_hbar f(I_)/ (2 c_E V) m^m^mp')
-    print('\t#                    # T_CIP (torque current in plane) Zhang-Li')
-    print('\t#                    +gamma nu f(I_) c_hbar / (2 c_E V) m^mp')
-    print('\t#                    +alpha gamma nu I_ c_hbar / (2 c_E V) m^mp')
+    print("\t# (1+alpha^2)dm/dt = #LLG ")
+    print("\t#                    # Gilbert damping model: ")
+    print("\t#                    -gamma c_U0 m^H_eff")
+    print("\t#                    # Gilbert damping model: ")
+    print("\t#                    -alpha gamma c_U0 m^m^H_eff")
+    print("\t#                    # T_CPP (torque current perp. plane) ")
+    print("\t#                    # Slonczewski Model: ")
+    print("\t#                    -gamma nu I_ c_hbar / (2 c_E V) m^m^mp")
+    print("\t#                    +alpha gamma c_hbar f(I_)/ (2 c_E V) m^m^mp")
+    print("\t#                    # T_CIP (torque current in plane) Zhang-Li")
+    print("\t#                    +gamma nu f(I_) c_hbar / (2 c_E V) m^mp")
+    print("\t#                    +alpha gamma nu I_ c_hbar / (2 c_E V) m^mp")
 
-    print('\n\t-> normalized and grouping by I_ (h_stt) and f(I_) (h_stt_2):')
-    print('\t# h_eff = H_eff / (gamma c_U0 Ms)')
-    print('\t# Ns = 2 Ms V / (gamma c_hbar)')
-    print('\t# I = Is / (c_E gamma c_U0 Ms Ns)')
-    print('\t#   = 2 Js / (c_E c_U0 Ms t_fl area)')
-    print('\t# (1+alpha^2)dm/dt = -m^h_eff      -alpha*m^m^h_eff')
-    print('\t#                    -m^m^h_stt    +alpha*m^h_stt')
-    print('\t#                    +m^h_stt_2  +alpha*m^m^h_stt_2')
-    print('\n\t-> spherical')
-    print('\tAment, S., et al.')
-    print('\tSolving the stochastic Landau-Lifshitz-Gilbert-Slonczewski')
-    print('\tequation for monodomain nanomagnets :')
-    print('\tA survey and analysis of numerical techniques.')
-    print('\tRetrieved from http://arxiv.org/abs/1607.04596')
-    print('\t# (1+alpha^2)dtheta/dt = [')
-    print('\t#       h_eff_phi     + alpha*h_eff_theta')
-    print('\t#     + h_stt_1_theta - alpha*h_stt_phi')
-    print('\t#     - h_stt_2_phi   - alpha*h_stt_2_theta')
-    print('\t# ]')
-    print('\t# (1+alpha^2)dphi/dt = [')
-    print('\t#     - h_eff_theta   + alpha*h_eff_phi')
-    print('\t#     + h_stt_1_phi   + alpha*h_stt_1_theta')
-    print('\t#     + h_stt_2_theta - alpha*h_stt_2_phi')
-    print('\t# ]/sin(theta)')
+    print("\n\t-> normalized and grouping by I_ (h_stt) and f(I_) (h_stt_2):")
+    print("\t# h_eff = H_eff / (gamma c_U0 Ms)")
+    print("\t# Ns = 2 Ms V / (gamma c_hbar)")
+    print("\t# I = Is / (c_E gamma c_U0 Ms Ns)")
+    print("\t#   = 2 Js / (c_E c_U0 Ms t_fl area)")
+    print("\t# (1+alpha^2)dm/dt = -m^h_eff      -alpha*m^m^h_eff")
+    print("\t#                    -m^m^h_stt    +alpha*m^h_stt")
+    print("\t#                    +m^h_stt_2  +alpha*m^m^h_stt_2")
+    print("\n\t-> spherical")
+    print("\tAment, S., et al.")
+    print("\tSolving the stochastic Landau-Lifshitz-Gilbert-Slonczewski")
+    print("\tequation for monodomain nanomagnets :")
+    print("\tA survey and analysis of numerical techniques.")
+    print("\tRetrieved from http://arxiv.org/abs/1607.04596")
+    print("\t# (1+alpha^2)dtheta/dt = [")
+    print("\t#       h_eff_phi     + alpha*h_eff_theta")
+    print("\t#     + h_stt_1_theta - alpha*h_stt_phi")
+    print("\t#     - h_stt_2_phi   - alpha*h_stt_2_theta")
+    print("\t# ]")
+    print("\t# (1+alpha^2)dphi/dt = [")
+    print("\t#     - h_eff_theta   + alpha*h_eff_phi")
+    print("\t#     + h_stt_1_phi   + alpha*h_stt_1_theta")
+    print("\t#     + h_stt_2_theta - alpha*h_stt_2_phi")
+    print("\t# ]/sin(theta)")
 
-    print('\n\t* Noise')
-    print('\tPinna, D., et. al.')
-    print('\tSpin-transfer torque magnetization reversal in uniaxial')
-    print('\tnanomagnets with thermal noise.')
-    print('\tJournal of Applied Physics, 114(3), 1–9.')
-    print('\thttps://doi.org/10.1063/1.4813488')
+    print("\n\t* Noise")
+    print("\tPinna, D., et. al.")
+    print("\tSpin-transfer torque magnetization reversal in uniaxial")
+    print("\tnanomagnets with thermal noise.")
+    print("\tJournal of Applied Physics, 114(3), 1–9.")
+    print("\thttps://doi.org/10.1063/1.4813488")
 
 
 def normalize_cart(u):
@@ -128,9 +128,9 @@ def normalize_cart(u):
 
 def uxv_cart(u, v):
     """U x V in cartesians."""
-    w_x = (u[1]*v[2] - v[1]*u[2])
-    w_y = (-u[0]*v[2] + u[2]*v[0])
-    w_z = (u[0]*v[1] - u[1]*v[0])
+    w_x = u[1] * v[2] - v[1] * u[2]
+    w_y = -u[0] * v[2] + u[2] * v[0]
+    w_z = u[0] * v[1] - u[1] * v[0]
     return np.array([w_x, w_y, w_z])
 
 
@@ -147,10 +147,12 @@ def cart_from_spherical_fn(sph_vector):
     else:
         expanded = False
     xyz_vector = np.zeros(sph_vector.shape)
-    xyz_vector[:, 0] = sph_vector[:, 0] * \
-        np.sin(sph_vector[:, 1])*np.cos(sph_vector[:, 2])
-    xyz_vector[:, 1] = sph_vector[:, 0] * \
-        np.sin(sph_vector[:, 1])*np.sin(sph_vector[:, 2])
+    xyz_vector[:, 0] = (
+        sph_vector[:, 0] * np.sin(sph_vector[:, 1]) * np.cos(sph_vector[:, 2])
+    )
+    xyz_vector[:, 1] = (
+        sph_vector[:, 0] * np.sin(sph_vector[:, 1]) * np.sin(sph_vector[:, 2])
+    )
     xyz_vector[:, 2] = sph_vector[:, 0] * np.cos(sph_vector[:, 1])
     if expanded:
         return xyz_vector[0]
@@ -169,8 +171,8 @@ def spherical_from_cart_np(xyz_vector):
     else:
         expanded = False
     sph_vector = np.zeros(xyz_vector.shape)
-    xy = xyz_vector[:, 0]**2 + xyz_vector[:, 1]**2
-    sph_vector[:, 0] = np.sqrt(xy + xyz_vector[:, 2]**2)
+    xy = xyz_vector[:, 0] ** 2 + xyz_vector[:, 1] ** 2
+    sph_vector[:, 0] = np.sqrt(xy + xyz_vector[:, 2] ** 2)
     # for elevation angle defined from Z-axis down
     sph_vector[:, 1] = np.arctan2(np.sqrt(xy), xyz_vector[:, 2])
     # for elevation angle defined from XY-plane up
@@ -197,28 +199,29 @@ def zero(t):
     return 0.0
 
 
-def def_window_power(d_theta, theta, theta_min,  p=20):
+def def_window_power(d_theta, theta, theta_min, p=20):
     """
     "Windowing fn for theta.
 
     Requires theta between [0, np.pi], not an open integration.
     """
+
     def _window(x):
         # power window
-        return 1. - np.power(x - 1, p)
+        return 1.0 - np.power(x - 1, p)
 
     # required if theta_ini bellow theta_min
-    if theta > np.pi/2 and d_theta < 0:
-        return 1.
-    if theta < np.pi/2 and d_theta > 0:
-        return 1.
-    delta = theta_min/3
-    if theta > np.pi/2 and np.pi - theta >= theta_min:
+    if theta > np.pi / 2 and d_theta < 0:
+        return 1.0
+    if theta < np.pi / 2 and d_theta > 0:
+        return 1.0
+    delta = theta_min / 3
+    if theta > np.pi / 2 and np.pi - theta >= theta_min:
         return _window(-theta + (np.pi - theta_min - delta))
-    if theta <= np.pi/2 and theta >= theta_min:
+    if theta <= np.pi / 2 and theta >= theta_min:
         return _window(theta - theta_min - delta)
     else:
-        return 0.
+        return 0.0
 
 
 def def_window(d_theta, theta, theta_min):
@@ -227,23 +230,24 @@ def def_window(d_theta, theta, theta_min):
 
     Requires theta between [0, np.pi], not an open integration.
     """
+
     def _window(x):
         # Tukey window
-        if x < theta_min/4:
-            return 0.5*(1 - np.cos(2*np.pi*x / (theta_min/2)))
-        return 1.
+        if x < theta_min / 4:
+            return 0.5 * (1 - np.cos(2 * np.pi * x / (theta_min / 2)))
+        return 1.0
 
     # required if theta_ini bellow theta_min
-    if theta > np.pi/2 and d_theta < 0:
-        return 1.
-    if theta < np.pi/2 and d_theta > 0:
-        return 1.
-    if theta > np.pi/2 and np.pi - theta >= theta_min:
+    if theta > np.pi / 2 and d_theta < 0:
+        return 1.0
+    if theta < np.pi / 2 and d_theta > 0:
+        return 1.0
+    if theta > np.pi / 2 and np.pi - theta >= theta_min:
         return _window(-theta + (np.pi - theta_min))
-    if theta <= np.pi/2 and theta >= theta_min:
+    if theta <= np.pi / 2 and theta >= theta_min:
         return _window(theta - theta_min)
     else:
-        return 0.
+        return 0.0
 
 
 class Sol:
@@ -256,91 +260,87 @@ class Sol:
 class LLG:
     """Basic s-LLGS class."""
 
-    def __init__(self,
-                 hk_mode=1,
-                 do_thermal=False,              # simulate thermal noise
-                 do_theta_windowing=False,      # force a min theta angle
-                                                # (set to theta_init) if
-                                                # thermal is not computed,
-                                                # to avoid total damping
-                 do_fake_thermal=True,          # simulate fake thermal noise
-                 d_theta_fake_th=1/15,          # d_theta will have an extra
-                                                # term based on this
-                 theta_windowing=def_window,    # theta windowing function
-                                                # should min theta be forced
-                 theta_windowing_factor=2,      # theta_min = factor*theta_0
-                 seed=0,
-                 i_amp_fn=zero,                 # [A] applied current f(t)
-                                                # in P direction
-                 temperature=300,               # [K]
-                 t_fl=1.0e-9,                   # [m] thickness of free layer
-                 t_ox=1.6e-9,                   # [m] thickness of oxide
-                 w_fl=50e-9,                    # [m] mtj width
-                 l_fl=50e-9,                    # [m] mtj length
-                 # init state
-                 # order of priority: m_init, angle_init, state
-                 # init state priority 0
-                 m_init=None,                   # initial m vector state
-                                                # [x, y, z],
-                 # init state priority 1
-                 # only used if m_init is None
-                 theta_init=None,               # [rad] None  1/sqrt(2delta(T))
-                 phi_init=0.1*np.pi/180,        # [rad]
-                 # init state priority 2
-                 # only used if m_init and angle_init are None
-                 state='P',                     # Initial state, only used if
-                                                # theta_init=None
-
-                 # magnetic parameters
-                 k_i_0=1e-3,                    # uniaxial anisotropy [J/m^2]
-                 alpha=0.005,                   # alpha damping factor
-                 ms=0.97e6,                     # magnetization sat. [A/m]
-                 # shape anisotropy
-                 shape_ani_demag_mode=2,        # 0: no shape anisotropy
-                                                # 1: shape_ani_demag_n vector
-                                                # 2 and 3:
-                                                # two different literature
-                                                # implementations
-                 shape_ani_demag_n=None,        # Shape anisotropy demag vector
-                                                # if None, it is computed
-                                                # as a cylinder
-                 # exchange energy
-                 do_a_exchange=False,           # whether do or not energy
-                                                # exchange
-                 a_exchange=1e-11,              # Exchange constant [J/m]
-
-                 # stt parameters
-                 stt_mode='stt_oommf_simple',   # stt_oommf_full:
-                                                #   lamb. & P free per layer
-                                                # stt_oommf_simple:
-                                                #   single lambda and P
-                                                # stt_simplest: just p
-                 # stt mode oomf_full
-                 p_pl=0.3,                      # polarization factor
-                 p_fl=0.25,                      # polarization factor
-                 lambda_pl=1.2,                 # [FITTING] parameter
-                 lambda_fl=1.2,                 # [FITTING] parameter
-                                                # for out of plane torque
-                 # stt mode oomf_simple
-                 lambda_s=1.2,                  # [FITTING] parameter
-                 p=0.35,                        # polarization factor
-                 # stt mode simplest
-                 nabla_mult=1,                  # epsilon = nabla/2
-                 # secondary STT term
-                 eps_prime=0.0,                 # [FITTING] constant
-
-                 # vcma paramters
-                 do_vcma=False,
-                 xi=61e-15,                     # vcma coeff, [J/(V*m)]
-
-                 # TMR and conductance
-                 r_p=6e3,                       # RP resistance, [ohm]
-
-                 # pinned layer angle
-                 theta_pl=0.0,                  # [rad] pinned layer theta
-                 phi_pl=0.0,                    # [rad] pinned layer phi
-                 h_ext_cart=zero3               # external field f(t) [A/m]
-                 ):
+    def __init__(
+        self,
+        hk_mode=1,
+        do_thermal=False,  # simulate thermal noise
+        do_theta_windowing=False,  # force a min theta angle
+        # (set to theta_init) if
+        # thermal is not computed,
+        # to avoid total damping
+        do_fake_thermal=True,  # simulate fake thermal noise
+        d_theta_fake_th=1 / 15,  # d_theta will have an extra
+        # term based on this
+        theta_windowing=def_window,  # theta windowing function
+        # should min theta be forced
+        theta_windowing_factor=2,  # theta_min = factor*theta_0
+        seed=0,
+        i_amp_fn=zero,  # [A] applied current f(t)
+        # in P direction
+        temperature=300,  # [K]
+        t_fl=1.0e-9,  # [m] thickness of free layer
+        t_ox=1.6e-9,  # [m] thickness of oxide
+        w_fl=50e-9,  # [m] mtj width
+        l_fl=50e-9,  # [m] mtj length
+        # init state
+        # order of priority: m_init, angle_init, state
+        # init state priority 0
+        m_init=None,  # initial m vector state
+        # [x, y, z],
+        # init state priority 1
+        # only used if m_init is None
+        theta_init=None,  # [rad] None  1/sqrt(2delta(T))
+        phi_init=0.1 * np.pi / 180,  # [rad]
+        # init state priority 2
+        # only used if m_init and angle_init are None
+        state="P",  # Initial state, only used if
+        # theta_init=None
+        # magnetic parameters
+        k_i_0=1e-3,  # uniaxial anisotropy [J/m^2]
+        alpha=0.005,  # alpha damping factor
+        ms=0.97e6,  # magnetization sat. [A/m]
+        # shape anisotropy
+        shape_ani_demag_mode=2,  # 0: no shape anisotropy
+        # 1: shape_ani_demag_n vector
+        # 2 and 3:
+        # two different literature
+        # implementations
+        shape_ani_demag_n=None,  # Shape anisotropy demag vector
+        # if None, it is computed
+        # as a cylinder
+        # exchange energy
+        do_a_exchange=False,  # whether do or not energy
+        # exchange
+        a_exchange=1e-11,  # Exchange constant [J/m]
+        # stt parameters
+        stt_mode="stt_oommf_simple",  # stt_oommf_full:
+        #   lamb. & P free per layer
+        # stt_oommf_simple:
+        #   single lambda and P
+        # stt_simplest: just p
+        # stt mode oomf_full
+        p_pl=0.3,  # polarization factor
+        p_fl=0.25,  # polarization factor
+        lambda_pl=1.2,  # [FITTING] parameter
+        lambda_fl=1.2,  # [FITTING] parameter
+        # for out of plane torque
+        # stt mode oomf_simple
+        lambda_s=1.2,  # [FITTING] parameter
+        p=0.35,  # polarization factor
+        # stt mode simplest
+        nabla_mult=1,  # epsilon = nabla/2
+        # secondary STT term
+        eps_prime=0.0,  # [FITTING] constant
+        # vcma paramters
+        do_vcma=False,
+        xi=61e-15,  # vcma coeff, [J/(V*m)]
+        # TMR and conductance
+        r_p=6e3,  # RP resistance, [ohm]
+        # pinned layer angle
+        theta_pl=0.0,  # [rad] pinned layer theta
+        phi_pl=0.0,  # [rad] pinned layer phi
+        h_ext_cart=zero3,  # external field f(t) [A/m]
+    ):
         """Init Method."""
         # parameters
 
@@ -349,10 +349,10 @@ class LLG:
         # np.random.seed(seed)
         self.seed = seed
         self.rng = np.random.default_rng(seed)
-        print(f'[seed] seed initialized: {seed}')
+        print(f"[seed] seed initialized: {seed}")
 
         self.hk_mode = hk_mode
-        print(f'\t[debug] hk_mode: {hk_mode}')
+        print(f"\t[debug] hk_mode: {hk_mode}")
 
         # thermal
         self.do_thermal = do_thermal
@@ -363,7 +363,7 @@ class LLG:
         self.d_theta_fake_th = d_theta_fake_th
         if not self.do_thermal and self.do_theta_windowing:
             # Convergence issues if not properly initialized
-            print('WARNING Convergence issues if not properly initialized')
+            print("WARNING Convergence issues if not properly initialized")
 
         # achieved switching time
         self.switching_t = np.inf
@@ -380,22 +380,22 @@ class LLG:
         self.t_ox = t_ox
         self.w_fl = w_fl
         self.l_fl = l_fl
-        self._area = np.pi/4*self.w_fl*self.l_fl
-        self._volume = self._area*self.t_fl
-        print(f'\t[debug] t_fl    {self.t_fl}')
-        print(f'\t[debug] t_ox    {self.t_ox}')
-        print(f'\t[debug] w_fl    {self.w_fl}')
-        print(f'\t[debug] l_fl    {self.l_fl}')
-        print(f'\t[debug] _area   {self._area}')
-        print(f'\t[debug] _volume {self._volume}')
+        self._area = np.pi / 4 * self.w_fl * self.l_fl
+        self._volume = self._area * self.t_fl
+        print(f"\t[debug] t_fl    {self.t_fl}")
+        print(f"\t[debug] t_ox    {self.t_ox}")
+        print(f"\t[debug] w_fl    {self.w_fl}")
+        print(f"\t[debug] l_fl    {self.l_fl}")
+        print(f"\t[debug] _area   {self._area}")
+        print(f"\t[debug] _volume {self._volume}")
 
         # magnetic properties
         self.alpha = alpha
-        self._U0_gamma_0_alpha = c_U0 * c_gamma_0 / (1 + self.alpha*self.alpha)
-        print(f'U0gamma0alpha: {self._U0_gamma_0_alpha}')
+        self._U0_gamma_0_alpha = c_U0 * c_gamma_0 / (1 + self.alpha * self.alpha)
+        print(f"U0gamma0alpha: {self._U0_gamma_0_alpha}")
         self.ms = ms
-        print(f'\t[debug] alpha: {self.alpha}')
-        print(f'\t[debug] ms: {self.ms}')
+        print(f"\t[debug] alpha: {self.alpha}")
+        print(f"\t[debug] ms: {self.ms}")
         # Full anisotropy:
         # Watanabe, K.,
         # Shape anisotropy revisited in single-digit nanometer magnetic
@@ -410,8 +410,8 @@ class LLG:
         self.do_a_exchange = do_a_exchange
         self.a_exchange = a_exchange
         if a_exchange <= 0:
-            print('[warning] A energy exchange disabled')
-            self.a_exchange = 0.
+            print("[warning] A energy exchange disabled")
+            self.a_exchange = 0.0
         # Thermal Stability
         # initial h_k with approximate m_cart = [0, 0, +/-1]
         if m_init is not None:
@@ -419,26 +419,29 @@ class LLG:
         elif theta_init is not None:
             z_0 = np.cos(theta_init)
         else:
-            if state == 'P':
+            if state == "P":
                 z_0 = 1
             else:
                 z_0 = -1
-        print(f'\t[debug] z_0: {z_0}')
-        print(f'\t[debug] _volume: {self._volume}')
+        print(f"\t[debug] z_0: {z_0}")
+        print(f"\t[debug] _volume: {self._volume}")
         h_k = 2 * self.k_i * np.abs(z_0) / (self.t_fl * c_U0 * self.ms)
-        print(f'\t[debug] hk_mode: {self.hk_mode}')
+        print(f"\t[debug] hk_mode: {self.hk_mode}")
         if self.hk_mode == 0:
-            h_k += -self.ms * \
-                (self.shape_ani_demag_n[2] -
-                 self.shape_ani_demag_n[0]) * np.abs(z_0)
+            h_k += (
+                -self.ms
+                * (self.shape_ani_demag_n[2] - self.shape_ani_demag_n[0])
+                * np.abs(z_0)
+            )
         else:
-            h_k += -self.ms*(self.shape_ani_demag_n[2]) * np.abs(z_0)
+            h_k += -self.ms * (self.shape_ani_demag_n[2]) * np.abs(z_0)
         # print(f'fer: hk: {h_k}')
         # self.m_cart_init = [0, 0, z_0]
         # self.theta_0 = np.arccos(z_0)
         # print(f'fer: hkb: {self._get_h_k_eff()}')
-        self.thermal_stability = c_U0 * self.ms * h_k * self._volume / (
-            2 * c_KB * self.temperature)
+        self.thermal_stability = (
+            c_U0 * self.ms * h_k * self._volume / (2 * c_KB * self.temperature)
+        )
 
         # 'internal parameters'
         # Internal parameters are computed here for efficiency
@@ -447,18 +450,20 @@ class LLG:
         # For the STT term
         # for out of plane torque
         self.eps_prime = eps_prime  # [FITTING] constant
-        self._init_stt_constants(stt_mode=stt_mode,
-                                 # oommf full mode
-                                 lambda_pl=lambda_pl,
-                                 lambda_fl=lambda_fl,
-                                 p_pl=p_pl,
-                                 p_fl=p_fl,
-                                 # oommf_simple mode
-                                 lambda_s=lambda_s,
-                                 p=p,
-                                 # simple mode
-                                 # p=p, # shared with oommf_simple
-                                 nabla_mult=nabla_mult)
+        self._init_stt_constants(
+            stt_mode=stt_mode,
+            # oommf full mode
+            lambda_pl=lambda_pl,
+            lambda_fl=lambda_fl,
+            p_pl=p_pl,
+            p_fl=p_fl,
+            # oommf_simple mode
+            lambda_s=lambda_s,
+            p=p,
+            # simple mode
+            # p=p, # shared with oommf_simple
+            nabla_mult=nabla_mult,
+        )
 
         # vcma
         self.do_vcma = do_vcma
@@ -480,9 +485,9 @@ class LLG:
 
         # conductance
         self.r_p = r_p
-        self.tmr = 2*self.p*self.p/(1-self.p*self.p)
-        print(f'\t[debug] p: {self.p}')
-        print(f'\t[debug] tmr: {self.tmr}')
+        self.tmr = 2 * self.p * self.p / (1 - self.p * self.p)
+        print(f"\t[debug] p: {self.p}")
+        print(f"\t[debug] tmr: {self.tmr}")
 
         # debug ic, taud
         self._get_Ic(debug=True)
@@ -492,17 +497,17 @@ class LLG:
         self.last_t = 0.0
         self.last_dt = 1e-12
 
-    def _init_shape_anisotropy_n(self,
-                                 shape_ani_demag_mode,
-                                 shape_ani_demag_n):
+    def _init_shape_anisotropy_n(self, shape_ani_demag_mode, shape_ani_demag_n):
         """Init shape anisotropy constants."""
         self.shape_ani_demag_n = shape_ani_demag_n
         if shape_ani_demag_mode == 0:
             self.shape_ani_demag_n = np.zeros(3)
         elif shape_ani_demag_mode == 1:
-            if np.sum(shape_ani_demag_n) != 1.:
-                print('[warning] sum(shape_ani_demag_n) != 1,'
-                      f'sum: {np.sum(shape_ani_demag_n)}')
+            if np.sum(shape_ani_demag_n) != 1.0:
+                print(
+                    "[warning] sum(shape_ani_demag_n) != 1,"
+                    f"sum: {np.sum(shape_ani_demag_n)}"
+                )
             self.shape_ani_demag_n = shape_ani_demag_n
         elif shape_ani_demag_mode == 2:
             # ferromagnetic cylinder
@@ -512,42 +517,46 @@ class LLG:
             # rod and cylinder.
             # Journal of Applied Physics, 66(2), 983–985.
             # https://doi.org/10.1063/1.343481
-            r = np.sqrt(self.w_fl*self.l_fl)/2
-            nz = 1/(2*self.t_fl/(r*np.sqrt(np.pi)) + 1)
-            self.shape_ani_demag_n = np.array([
-                (1-nz)/2,
-                (1-nz)/2,
-                nz])
+            r = np.sqrt(self.w_fl * self.l_fl) / 2
+            nz = 1 / (2 * self.t_fl / (r * np.sqrt(np.pi)) + 1)
+            self.shape_ani_demag_n = np.array([(1 - nz) / 2, (1 - nz) / 2, nz])
         elif shape_ani_demag_mode == 3:
             # Zhang, K., et al.
             # Compact Modeling and Analysis of Voltage-Gated
             # Spin-Orbit Torque Magnetic Tunnel Junction.
             # IEEE Access, 8, 50792–50800.
             # https://doi.org/10.1109/ACCESS.2020.2980073
-            self.shape_ani_demag_n = np.array([
-                np.pi*self.t_fl / (4*np.sqrt(self.w_fl*self.l_fl)),
-                np.pi*self.t_fl / (4*np.sqrt(self.w_fl*self.l_fl)),
-                1 - 2 * np.pi*self.t_fl/(4*np.sqrt(self.w_fl*self.l_fl))])
+            self.shape_ani_demag_n = np.array(
+                [
+                    np.pi * self.t_fl / (4 * np.sqrt(self.w_fl * self.l_fl)),
+                    np.pi * self.t_fl / (4 * np.sqrt(self.w_fl * self.l_fl)),
+                    1 - 2 * np.pi * self.t_fl / (4 * np.sqrt(self.w_fl * self.l_fl)),
+                ]
+            )
         else:
-            print('[error] shape_ani_demag_n not supported')
+            print("[error] shape_ani_demag_n not supported")
             exit(1)
         self.shape_ani_demag_n = np.array(self.shape_ani_demag_n)
-        print(f'\t[debug] shape_ani mode {shape_ani_demag_mode}. '
-              f'shape_ani_n: {self.shape_ani_demag_n}')
+        print(
+            f"\t[debug] shape_ani mode {shape_ani_demag_mode}. "
+            f"shape_ani_n: {self.shape_ani_demag_n}"
+        )
 
-    def _init_stt_constants(self,
-                            stt_mode,
-                            # oommf full mode
-                            lambda_pl,
-                            lambda_fl,
-                            p_pl,
-                            p_fl,
-                            # oommf_simple mode
-                            lambda_s,
-                            p,
-                            # simple mode
-                            # p=p, # shared with oommf_simple
-                            nabla_mult):
+    def _init_stt_constants(
+        self,
+        stt_mode,
+        # oommf full mode
+        lambda_pl,
+        lambda_fl,
+        p_pl,
+        p_fl,
+        # oommf_simple mode
+        lambda_s,
+        p,
+        # simple mode
+        # p=p, # shared with oommf_simple
+        nabla_mult,
+    ):
         """
         Initialize STT constants following OOMMF.
 
@@ -563,43 +572,46 @@ class LLG:
         https://doi.org/10.1088/0022-3727/46/7/074001
         """
         self.stt_mode = stt_mode
-        self._stt_scale_mult = 1    # 1 matching OOMMF
-        self._stt_scale_fac = self._stt_scale_mult * \
-            c_hbar / (c_U0 * c_E * self.ms * self._volume)
-        if self.stt_mode == 'stt_oommf_full':
+        self._stt_scale_mult = 1  # 1 matching OOMMF
+        self._stt_scale_fac = (
+            self._stt_scale_mult * c_hbar / (c_U0 * c_E * self.ms * self._volume)
+        )
+        if self.stt_mode == "stt_oommf_full":
             self.lambda_pl = lambda_pl
             self.lambda_fl = lambda_fl
-            _lamb_PL2 = lambda_pl*lambda_pl
-            _lamb_FL2 = lambda_fl*lambda_fl
-            self._ap = np.sqrt(_lamb_PL2+1)*(_lamb_FL2+1)
-            self._am = np.sqrt(_lamb_PL2-1)*(_lamb_FL2-1)
-            self._ap2 = (_lamb_PL2+1)*(_lamb_FL2+1)
-            self._am2 = (_lamb_PL2-1)*(_lamb_FL2-1)
+            _lamb_PL2 = lambda_pl * lambda_pl
+            _lamb_FL2 = lambda_fl * lambda_fl
+            self._ap = np.sqrt(_lamb_PL2 + 1) * (_lamb_FL2 + 1)
+            self._am = np.sqrt(_lamb_PL2 - 1) * (_lamb_FL2 - 1)
+            self._ap2 = (_lamb_PL2 + 1) * (_lamb_FL2 + 1)
+            self._am2 = (_lamb_PL2 - 1) * (_lamb_FL2 - 1)
 
-            self._kp = p_pl*_lamb_PL2 * \
-                np.sqrt((_lamb_FL2+1)/(_lamb_PL2+1)) + p_fl * \
-                _lamb_FL2*np.sqrt((_lamb_PL2-1)/(_lamb_FL2-1))
-            self._km = p_pl*_lamb_PL2 * \
-                np.sqrt((_lamb_FL2+1)/(_lamb_PL2+1)) - p_fl * \
-                _lamb_FL2*np.sqrt((_lamb_PL2-1)/(_lamb_FL2-1))
-        elif self.stt_mode == 'stt_oommf_simple':
+            self._kp = p_pl * _lamb_PL2 * np.sqrt(
+                (_lamb_FL2 + 1) / (_lamb_PL2 + 1)
+            ) + p_fl * _lamb_FL2 * np.sqrt((_lamb_PL2 - 1) / (_lamb_FL2 - 1))
+            self._km = p_pl * _lamb_PL2 * np.sqrt(
+                (_lamb_FL2 + 1) / (_lamb_PL2 + 1)
+            ) - p_fl * _lamb_FL2 * np.sqrt((_lamb_PL2 - 1) / (_lamb_FL2 - 1))
+        elif self.stt_mode == "stt_oommf_simple":
             self.lambda_s = lambda_s
-            print(f'\t[debug] lambda_s: {self.lambda_s}')
+            print(f"\t[debug] lambda_s: {self.lambda_s}")
             self.p = p
-            self._eps_simple_num = p*lambda_s*lambda_s
-            self._eps_simple_den0 = lambda_s*lambda_s + 1
-            self._eps_simple_den1 = lambda_s*lambda_s - 1
-        elif self.stt_mode == 'stt_simplest':
-            self._nabla_mult = nabla_mult   # epsilon = nabla/2
+            self._eps_simple_num = p * lambda_s * lambda_s
+            self._eps_simple_den0 = lambda_s * lambda_s + 1
+            self._eps_simple_den1 = lambda_s * lambda_s - 1
+        elif self.stt_mode == "stt_simplest":
+            self._nabla_mult = nabla_mult  # epsilon = nabla/2
             # nabla = _nabla_mult * P/(1+/-P^2)
             # so epsilon = _nabla_mult/2 * P/(1+/-P^2)
             # see model code, different research groups
             # use different factors for SMTJ
             self.p = p
         else:
-            print('[ERROR] stt_mode should be '
-                  '"stt_oommf_full" | "stt_oommf_simple" | "stt_simplest"'
-                  f' Provided: {self.stt_mode}')
+            print(
+                "[ERROR] stt_mode should be "
+                '"stt_oommf_full" | "stt_oommf_simple" | "stt_simplest"'
+                f" Provided: {self.stt_mode}"
+            )
             raise Exception
 
     def _init_thermal_constants(self):
@@ -641,24 +653,27 @@ class LLG:
         # = A/m sqrt[s / rad])
         # which is later multiplied by sqrt[1/s] so the final
         # sigma_th = A/m / sqrt(rad)
-        th_gamma = c_gamma_0 * c_U0 / (1 + self.alpha*self.alpha)
+        th_gamma = c_gamma_0 * c_U0 / (1 + self.alpha * self.alpha)
         self.th_power_noise_std = np.sqrt(
-            2. * self.alpha * self.temperature * c_KB /
-            (c_U0 * th_gamma * self.ms * self._volume))
+            2.0
+            * self.alpha
+            * self.temperature
+            * c_KB
+            / (c_U0 * th_gamma * self.ms * self._volume)
+        )
 
         # for the non-normalized field:
         # Units: sqrt(J/((Henry/m)*m*m*m)) = A/m
         self.sigma_th = np.sqrt(
-            2. * self.alpha * self.temperature * c_KB /
-            (c_U0 * self._volume))
+            2.0 * self.alpha * self.temperature * c_KB / (c_U0 * self._volume)
+        )
         # for the normalized field:
         # Units: sqrt(J/((Henry/m)*(A/m)*(A/m)*m*m*m)) = 1
         # self.sigma_th = np.sqrt(
         #     2. * self.alpha * self.temperature * c_KB /
         #     (c_U0 * self.ms * self.ms * self._volume))
 
-    def _init_magnetic_vectors(self, m_init, theta_init,
-                               phi_init, state):
+    def _init_magnetic_vectors(self, m_init, theta_init, phi_init, state):
         """
         Initialize magnetic vectors.
 
@@ -695,12 +710,12 @@ class LLG:
            https://doi.org/10.1088/0022-3727/46/7/074001
         """
         # initial angles under no variability
-        print(f'\t[debug] thermal_stability: {self.thermal_stability}')
-        self.theta_0 = np.sqrt(1/(2*self.thermal_stability))
-        print(f'\t[debug] theta_0: {self.theta_0}, or {np.pi-self.theta_0}')
-        print(f'\t[debug] m_init: {m_init}')
+        print(f"\t[debug] thermal_stability: {self.thermal_stability}")
+        self.theta_0 = np.sqrt(1 / (2 * self.thermal_stability))
+        print(f"\t[debug] theta_0: {self.theta_0}, or {np.pi - self.theta_0}")
+        print(f"\t[debug] m_init: {m_init}")
         if m_init is not None:
-            print(f'\t[debug] m_init given: {m_init}')
+            print(f"\t[debug] m_init given: {m_init}")
             _, self.theta_init, self.phi_init = spherical_from_cart_np(m_init)
             if np.isnan(self.theta_init) or self.theta_init == 0:
                 self.theta_init = 0.01
@@ -715,24 +730,24 @@ class LLG:
             #  )
             # _mean = np.sqrt(2/np.pi)*2*self.theta_0 \
             #         - self.theta_0*loc_theta_0_coeff
-            _mode = np.sqrt(2)*self.theta_0 - self.theta_0*loc_theta_0_coeff
-            if state == 'P':
+            _mode = np.sqrt(2) * self.theta_0 - self.theta_0 * loc_theta_0_coeff
+            if state == "P":
                 self.theta_init = _mode
-            elif state == 'AP':
+            elif state == "AP":
                 self.theta_init = np.pi - _mode
             else:
-                print(f'[error] invalid state [allowed: P|AP]: {state}')
+                print(f"[error] invalid state [allowed: P|AP]: {state}")
                 return None
             # phi_init
             if phi_init is None:
-                self.phi_init = self.rng.uniform(0.0, 2*np.pi)
+                self.phi_init = self.rng.uniform(0.0, 2 * np.pi)
             else:
                 self.phi_init = phi_init
         else:
             self.theta_init = theta_init
             # phi_init
             if phi_init is None:
-                self.phi_init = self.rng.uniform(0.0, 2*np.pi)
+                self.phi_init = self.rng.uniform(0.0, 2 * np.pi)
             else:
                 self.phi_init = phi_init
 
@@ -741,15 +756,14 @@ class LLG:
         # force min theta even when passed initial params
         # in case it is out of boundaries
         if self.do_theta_windowing:
-            if (self.theta_init > np.pi/2 and
-                    np.pi-self.theta_init < self.theta_min):
-                self.theta_init = np.pi-self.theta_min
+            if self.theta_init > np.pi / 2 and np.pi - self.theta_init < self.theta_min:
+                self.theta_init = np.pi - self.theta_min
             elif self.theta_init < self.theta_min:
                 self.theta_init = self.theta_min
 
         # debug
-        print(f'\t[debug] initial theta_init : {self.theta_init}')
-        print(f'\t[debug] initial phi_init : {self.phi_init}')
+        print(f"\t[debug] initial theta_init : {self.theta_init}")
+        print(f"\t[debug] initial phi_init : {self.phi_init}")
 
         # initial angle variability,
         # f noise is present and an initial angle has not been passed
@@ -758,8 +772,8 @@ class LLG:
             # get from maxwell distribution
             # generate an object as the np seed might be overrriden
             _maxwell_rv = maxwell(
-                loc=-self.theta_0*loc_theta_0_coeff,
-                scale=self.theta_0)
+                loc=-self.theta_0 * loc_theta_0_coeff, scale=self.theta_0
+            )
             _maxwell_rv.random_state = self.rng
             # np.random.RandomState(seed=self.seed)
             rand_angle = _maxwell_rv.rvs(size=1)[0]
@@ -770,39 +784,50 @@ class LLG:
             #         scale=self.theta_0)[0]
             # if self.seed % 2 == 1:
             #     rand_angle = -rand_angle
-            print(f'\t[debug] rand_angle: {rand_angle}')
+            print(f"\t[debug] rand_angle: {rand_angle}")
             # other distributions, should them be desired
             # rand_inc = np.random.normal(0.,
             #                             0.1/np.sqrt(2*self.thermal_stability),
             #                             1)[0]
-            if (self.theta_init > np.pi/2 and
-                    np.pi-rand_angle < self.theta_0):
-                self.theta_init = np.pi-rand_angle
+            if self.theta_init > np.pi / 2 and np.pi - rand_angle < self.theta_0:
+                self.theta_init = np.pi - rand_angle
             elif rand_angle < self.theta_0:
                 self.theta_init = rand_angle
-            print(f'\t[debug] theta_init after random: {self.theta_init}')
+            print(f"\t[debug] theta_init after random: {self.theta_init}")
 
         # init vectors
         self.m_sph_init = np.array([1, self.theta_init, self.phi_init])
         self.m_cart_init = cart_from_spherical_fn(self.m_sph_init)
-        self.p_cart = np.array([np.sin(self.theta_pl)*np.cos(self.phi_pl),
-                                np.sin(self.theta_pl)*np.sin(self.phi_pl),
-                                np.cos(self.theta_pl)])
-        print(f'\t[debug] constructor m_cart_init : {self.m_cart_init}')
-        print(f'\t[debug] constructor m_shp_init : {self.m_sph_init}')
+        self.p_cart = np.array(
+            [
+                np.sin(self.theta_pl) * np.cos(self.phi_pl),
+                np.sin(self.theta_pl) * np.sin(self.phi_pl),
+                np.cos(self.theta_pl),
+            ]
+        )
+        print(f"\t[debug] constructor m_cart_init : {self.m_cart_init}")
+        print(f"\t[debug] constructor m_shp_init : {self.m_sph_init}")
 
     def _get_Ic(self, debug=False):
         """Get I critical with no VCMA."""
-        eps_0 = self.get_epsilon_stt(np.dot(
-            self.m_cart_init, self.p_cart))
+        eps_0 = self.get_epsilon_stt(np.dot(self.m_cart_init, self.p_cart))
         # effective out of plane component
         hk_eff = self._get_h_k_eff()
         # nabla is 2 eps
-        ic = 2*self.alpha*c_E*c_U0*hk_eff*self.ms*self._volume/(c_hbar*eps_0*2)
+        ic = (
+            2
+            * self.alpha
+            * c_E
+            * c_U0
+            * hk_eff
+            * self.ms
+            * self._volume
+            / (c_hbar * eps_0 * 2)
+        )
         if debug:
-            print(f'\t[debug] eps_0: {eps_0}')
-            print(f'\t[debug] hk_eff: {hk_eff}')
-            print(f'\t[debug] Ic: {ic}')
+            print(f"\t[debug] eps_0: {eps_0}")
+            print(f"\t[debug] hk_eff: {hk_eff}")
+            print(f"\t[debug] Ic: {ic}")
         return ic
 
     def _get_h_k_eff(self, debug=True):
@@ -813,13 +838,19 @@ class LLG:
         # if debug:
         #     print(f'\t[debug] H_k: {h_k_eff}')
         if self.hk_mode == 0:
-            k_u_eff = self.k_i / self.t_fl - \
-                0.5*c_U0 * (
-                    self.shape_ani_demag_n[2] -
-                    self.shape_ani_demag_n[0])*self.ms*self.ms
+            k_u_eff = (
+                self.k_i / self.t_fl
+                - 0.5
+                * c_U0
+                * (self.shape_ani_demag_n[2] - self.shape_ani_demag_n[0])
+                * self.ms
+                * self.ms
+            )
         else:
-            k_u_eff = self.k_i / self.t_fl - \
-                0.5*c_U0 * (self.shape_ani_demag_n[2])*self.ms*self.ms
+            k_u_eff = (
+                self.k_i / self.t_fl
+                - 0.5 * c_U0 * (self.shape_ani_demag_n[2]) * self.ms * self.ms
+            )
         h_k_eff = 2 * k_u_eff * m_0[2] / (c_U0 * self.ms)
 
         # m_0[2] = np.cos(self.theta_0)
@@ -830,11 +861,10 @@ class LLG:
     def _get_tau_d(self, debug=False):
         """Get H_k initial with no VCMA."""
         hk_eff = self._get_h_k_eff()
-        tau_d = (1 + self.alpha*self.alpha)/(
-            self.alpha * c_gamma_0 * c_U0 * hk_eff)
+        tau_d = (1 + self.alpha * self.alpha) / (self.alpha * c_gamma_0 * c_U0 * hk_eff)
         if debug:
-            print(f'\t[debug] hk_eff: {hk_eff}')
-            print(f'\t[debug] tau_d: {tau_d}')
+            print(f"\t[debug] hk_eff: {hk_eff}")
+            print(f"\t[debug] tau_d: {tau_d}")
         return tau_d
 
     def get_epsilon_stt(self, mdp):
@@ -848,19 +878,23 @@ class LLG:
         Journal of Physics D: Applied Physics, 46(7), 074001.
         https://doi.org/10.1088/0022-3727/46/7/074001
         """
-        if self.stt_mode == 'stt_oommf_full':
+        if self.stt_mode == "stt_oommf_full":
             if (self.lambda_pl == 1.0) or (self.lambda_fl == 1.0):
                 return 0.5 * self.p
             else:
-                return self._kp / (self._ap + self._am * mdp) + \
-                    self._km / (self._ap - self._am * mdp)
-        elif self.stt_mode == 'stt_oommf_simple':
+                return self._kp / (self._ap + self._am * mdp) + self._km / (
+                    self._ap - self._am * mdp
+                )
+        elif self.stt_mode == "stt_oommf_simple":
             return self._eps_simple_num / (
-                self._eps_simple_den0 + self._eps_simple_den1 * mdp)
-        elif self.stt_mode == 'stt_simplest':
-            return self._nabla_mult/2*self.p/(1 + self.p * self.p * mdp)
-        print('[error] Non-valid stt_mode "stt_oommf_full" | '
-              '"stt_oommf_simple" | "stt_simplest"')
+                self._eps_simple_den0 + self._eps_simple_den1 * mdp
+            )
+        elif self.stt_mode == "stt_simplest":
+            return self._nabla_mult / 2 * self.p / (1 + self.p * self.p * mdp)
+        print(
+            '[error] Non-valid stt_mode "stt_oommf_full" | '
+            '"stt_oommf_simple" | "stt_simplest"'
+        )
         return None
 
     ###################
@@ -875,8 +909,8 @@ class LLG:
         """
         # for now return 0, (grad^2 * m)
         if not self.do_a_exchange:
-            return 0.
-        return 2*self.a_exchange/(c_U0 * self.ms)
+            return 0.0
+        return 2 * self.a_exchange / (c_U0 * self.ms)
 
     def get_h_th(self, dt):
         """Get thermal var.
@@ -892,9 +926,7 @@ class LLG:
         # _rnd = self.rng.normal(0.,
         #                        self.th_power_noise_std / np.sqrt(dt),
         #                        3)
-        _rnd = self.rng.normal(0.,
-                               1,
-                               3)
+        _rnd = self.rng.normal(0.0, 1, 3)
         _rnd = normalize_cart(_rnd)
         return _rnd * self.th_power_noise_std / np.sqrt(dt)
 
@@ -915,7 +947,7 @@ class LLG:
         https://doi.org/10.1038/s41467-018-03003-7
         """
         # given [nx, ny, xz]
-        return -self.ms*self.shape_ani_demag_n * m_cart
+        return -self.ms * self.shape_ani_demag_n * m_cart
 
     def get_h_una(self, m_cart):
         """Get uniaxial anisotropy vector.
@@ -945,11 +977,9 @@ class LLG:
         #                  0.,
         #                  2 * self.k_u * m_cart[2] / (c_U0 * self.ms)
         #                  ])
-        return np.array([0.,
-                         0.,
-                         2 * self.k_i * m_cart[2] /
-                         (self.t_fl * c_U0 * self.ms)
-                         ])
+        return np.array(
+            [0.0, 0.0, 2 * self.k_i * m_cart[2] / (self.t_fl * c_U0 * self.ms)]
+        )
 
     def get_h_vcma(self, v_mtj, m_cart):
         """Get VCMA  vector.
@@ -978,11 +1008,17 @@ class LLG:
         #                  ])
         if not self.do_vcma:
             return np.zeros(3)
-        return np.array([0.,
-                         0.,
-                         2 * self.xi * v_mtj * m_cart[2] / (
-                             self.t_fl * self.t_ox * c_U0 * self.ms)
-                         ])
+        return np.array(
+            [
+                0.0,
+                0.0,
+                2
+                * self.xi
+                * v_mtj
+                * m_cart[2]
+                / (self.t_fl * self.t_ox * c_U0 * self.ms),
+            ]
+        )
 
     #######################
     # conductance
@@ -1001,8 +1037,11 @@ class LLG:
         IEEE Transactions on Magnetics, 54(4).
         https://doi.org/10.1109/TMAG.2017.2788010
         """
-        return self.r_p*(1 + self.tmr/(self.tmr + 2))/(
-            1 - self.tmr/(self.tmr + 2)*m_cart[2])
+        return (
+            self.r_p
+            * (1 + self.tmr / (self.tmr + 2))
+            / (1 - self.tmr / (self.tmr + 2) * m_cart[2])
+        )
 
     #######################
     # differential vectors
@@ -1010,17 +1049,17 @@ class LLG:
 
     def get_diff_unit_theta_vector(self, m_sph):
         """Compute dt given infinitesimal displacement from ro, theta, phi."""
-        return np.array([np.cos(m_sph[1])*np.cos(m_sph[2]),
-                         np.cos(m_sph[1])*np.sin(m_sph[2]),
-                         -np.sin(m_sph[1])
-                         ])
+        return np.array(
+            [
+                np.cos(m_sph[1]) * np.cos(m_sph[2]),
+                np.cos(m_sph[1]) * np.sin(m_sph[2]),
+                -np.sin(m_sph[1]),
+            ]
+        )
 
     def get_diff_unit_phi_vector(self, m_sph):
         """Compute dp given infinitesimal displacement from ro, theta, phi."""
-        return np.array([-np.sin(m_sph[2]),
-                         np.cos(m_sph[2]),
-                         0
-                         ])
+        return np.array([-np.sin(m_sph[2]), np.cos(m_sph[2]), 0])
 
     def _g_cart(self, m_cart, v_cart):
         """
@@ -1031,7 +1070,7 @@ class LLG:
         mxv = np.cross(m_cart, v_cart)
         mxmxv = np.cross(m_cart, mxv)
 
-        return self._U0_gamma_0_alpha * (-mxv + self.alpha*(-mxmxv))
+        return self._U0_gamma_0_alpha * (-mxv + self.alpha * (-mxmxv))
 
     def _g_sph(self, m_sph, v_cart):
         """
@@ -1053,10 +1092,12 @@ class LLG:
 
         # as specified in OOMMF, gamma([(rad)/s/T]) should interface
         # the fields in A/m, so introducing u0
-        d_theta = self._U0_gamma_0_alpha * (
-            d_h_th_phi + self.alpha*(d_h_th_theta))
-        d_phi = self._U0_gamma_0_alpha / np.sin(m_sph[1]) * (
-            -d_h_th_theta + self.alpha*d_h_th_phi)
+        d_theta = self._U0_gamma_0_alpha * (d_h_th_phi + self.alpha * (d_h_th_theta))
+        d_phi = (
+            self._U0_gamma_0_alpha
+            / np.sin(m_sph[1])
+            * (-d_h_th_theta + self.alpha * d_h_th_phi)
+        )
 
         # dmdt is [dro, dthetadt, dphidt]
         return np.asarray([0, d_theta, d_phi], dtype=np.float64)
@@ -1080,7 +1121,7 @@ class LLG:
         """
         # check integrity
         if np.isnan(t):
-            print('[ERROR] time is NaN')
+            print("[ERROR] time is NaN")
             raise Exception
         # update variables
         _t = t
@@ -1154,31 +1195,38 @@ class LLG:
         # the fields in A/m, so introducing u0
         # OOMMF like, not normalized
         d_theta = self._U0_gamma_0_alpha * (
-            d_h_eff_phi + d_h_stt_1_theta - d_h_stt_2_phi +
-            self.alpha*(
-                d_h_eff_theta - d_h_stt_1_phi - d_h_stt_2_theta))
-        d_phi = self._U0_gamma_0_alpha / np.sin(m_sph[1]) * (
-            -d_h_eff_theta + d_h_stt_1_phi + d_h_stt_2_theta +
-            self.alpha*(
-                d_h_eff_phi + d_h_stt_1_theta - d_h_stt_2_phi))
+            d_h_eff_phi
+            + d_h_stt_1_theta
+            - d_h_stt_2_phi
+            + self.alpha * (d_h_eff_theta - d_h_stt_1_phi - d_h_stt_2_theta)
+        )
+        d_phi = (
+            self._U0_gamma_0_alpha
+            / np.sin(m_sph[1])
+            * (
+                -d_h_eff_theta
+                + d_h_stt_1_phi
+                + d_h_stt_2_theta
+                + self.alpha * (d_h_eff_phi + d_h_stt_1_theta - d_h_stt_2_phi)
+            )
+        )
 
         # fake theta term
         if (not self.do_thermal) and self.do_fake_thermal:
             # extra term can be seen as a direct contribution to h_phi
             # as d_theta/dt dependence on h_th is
             # ~ h_th_phi + alpha * h_th_theta
-            t_th = self._U0_gamma_0_alpha * \
-                self.th_power_noise_std / np.sqrt(_dt)
+            t_th = self._U0_gamma_0_alpha * self.th_power_noise_std / np.sqrt(_dt)
             if self.solve_normalized:
                 t_th /= self.ms
-            contrib = -self.d_theta_fake_th*np.sign(m_sph[1]-np.pi/2)*t_th
+            contrib = -self.d_theta_fake_th * np.sign(m_sph[1] - np.pi / 2) * t_th
             d_theta += contrib
         # saturate d_theta to emulate min field generated
         # by the thermal noise, avoiding total damping
         if (not self.do_thermal) and self.do_theta_windowing and dt > 0:
-            d_theta *= self.theta_windowing(d_theta=d_theta,
-                                            theta=m_sph[1],
-                                            theta_min=self.theta_min)
+            d_theta *= self.theta_windowing(
+                d_theta=d_theta, theta=m_sph[1], theta_min=self.theta_min
+            )
 
         # dmdt is [dro, dthetadt, dphidt]
         return np.asarray([0, d_theta, d_phi], dtype=np.float64)
@@ -1203,7 +1251,7 @@ class LLG:
         """
         # check integrity
         if np.isnan(t):
-            print('[ERROR] time is NaN')
+            print("[ERROR] time is NaN")
             raise Exception
         # update variables
         _t = t
@@ -1270,20 +1318,25 @@ class LLG:
         mxmxp_h_stt_2 = h_stt_2 * mxmxp
 
         return self._U0_gamma_0_alpha * (
-            -mxh_eff - mxmxp_h_stt_1 + mxp_h_stt_2
-            + self.alpha*(-mxmxh_eff + mxp_h_stt_1 + mxmxp_h_stt_2))
+            -mxh_eff
+            - mxmxp_h_stt_1
+            + mxp_h_stt_2
+            + self.alpha * (-mxmxh_eff + mxp_h_stt_1 + mxmxp_h_stt_2)
+        )
 
-    def solve_ode(self,
-                  final_t,
-                  scipy_ivp=True,
-                  solve_spherical=True,
-                  solve_normalized=False,
-                  method='RK45',
-                  # preferred method to control accuracy:
-                  rtol=1e-3,
-                  atol=1e-6,
-                  # other non-preferred way:
-                  max_step=np.inf):
+    def solve_ode(
+        self,
+        final_t,
+        scipy_ivp=True,
+        solve_spherical=True,
+        solve_normalized=False,
+        method="RK45",
+        # preferred method to control accuracy:
+        rtol=1e-3,
+        atol=1e-6,
+        # other non-preferred way:
+        max_step=np.inf,
+    ):
         """
         Integrate a dm_sph/dt fn.
 
@@ -1322,30 +1375,33 @@ class LLG:
 
         # max_step/tstep checks
         if not scipy_ivp and (max_step is None or max_step == np.inf):
-            print('[error] Max step should be specified when not using '
-                  'scipy_ivp mode')
+            print("[error] Max step should be specified when not using scipy_ivp mode")
             return None
         if not scipy_ivp and not solve_spherical and max_step > 1e-13:
-            print(f'[warning] max_step {max_step} might '
-                  'not be sufficiently small, use <=0.5e-13')
+            print(
+                f"[warning] max_step {max_step} might "
+                "not be sufficiently small, use <=0.5e-13"
+            )
         elif not scipy_ivp and solve_spherical and max_step > 1e-12:
-            print(f'[warning] max_step {max_step} might '
-                  'not be sufficiently small, use <=1e-12')
+            print(
+                f"[warning] max_step {max_step} might "
+                "not be sufficiently small, use <=1e-12"
+            )
         method_info = method
         if solve_spherical:
             _f = self._f_sph
             _g = self._g_sph
             y0 = self.m_sph_init
-            method_info += ', spherical coordinates'
+            method_info += ", spherical coordinates"
         else:
             _f = self._f_cart
             _g = self._g_cart
             y0 = self.m_cart_init
-            method_info = ', cartesian coordinates'
+            method_info = ", cartesian coordinates"
         if scipy_ivp and (max_step == np.inf or max_step is None):
             save_every = 1
         else:
-            save_every = int(saved_max_step/max_step)
+            save_every = int(saved_max_step / max_step)
 
         # normalization
         # do time normalization
@@ -1353,15 +1409,14 @@ class LLG:
             final_t *= self.ms * c_U0 * c_gamma_0
             max_step *= self.ms * c_U0 * c_gamma_0
             saved_max_step *= self.ms * c_U0 * c_gamma_0
-            self._U0_gamma_0_alpha = 1.
-            method_info += ', normalized time'
+            self._U0_gamma_0_alpha = 1.0
+            method_info += ", normalized time"
         else:
-            self._U0_gamma_0_alpha = c_U0 * \
-                c_gamma_0 / (1 + self.alpha*self.alpha)
-            method_info += ', not time normalized'
+            self._U0_gamma_0_alpha = c_U0 * c_gamma_0 / (1 + self.alpha * self.alpha)
+            method_info += ", not time normalized"
 
         if (self.do_thermal or self.do_fake_thermal) and scipy_ivp:
-            print('[info] Calling custom scipy fn for solver...')
+            print("[info] Calling custom scipy fn for solver...")
             # Application of the monkeypatch to replace rk_step
             # with the custom behavior (expose h to _f)
             base.check_arguments = custom_ode.check_arguments_custom
@@ -1372,32 +1427,35 @@ class LLG:
         # Default under no Wienner process
         # can be forced to match SPICE like solvers
         if scipy_ivp:
-            print(f'[info][solver] solve_ivp. Method: {method_info}')
-            print(f'[info] rtol: {rtol} atol: {atol} max_step:{max_step}')
+            print(f"[info][solver] solve_ivp. Method: {method_info}")
+            print(f"[info] rtol: {rtol} atol: {atol} max_step:{max_step}")
             if self.do_thermal:
-                print('[warning][solver] You are using scipy ivp solver.'
-                      'For the stochastic simulations, '
-                      'the use of a SDE solver is encouraged. '
-                      'See "scipy_ivp" parameter.')
+                print(
+                    "[warning][solver] You are using scipy ivp solver."
+                    "For the stochastic simulations, "
+                    "the use of a SDE solver is encouraged. "
+                    'See "scipy_ivp" parameter.'
+                )
 
             # time normalization already done
-            sol = solve_ivp(fun=_f,
-                            # lambda t,
-                            # y: _f(t, y, a),
-                            t_span=[0, final_t],
-                            # t_eval=np.linspace(0, final_t, 10000),
-                            y0=y0,
-                            method=method,
-                            # method='RK23'
-                            # method='RK45'
-                            # method='DOP853'
-                            # ...
-                            # preferred method to control accuracy:
-                            rtol=rtol,
-                            atol=atol,
-                            # other (non-preferred) way
-                            max_step=max_step,
-                            )
+            sol = solve_ivp(
+                fun=_f,
+                # lambda t,
+                # y: _f(t, y, a),
+                t_span=[0, final_t],
+                # t_eval=np.linspace(0, final_t, 10000),
+                y0=y0,
+                method=method,
+                # method='RK23'
+                # method='RK45'
+                # method='DOP853'
+                # ...
+                # preferred method to control accuracy:
+                rtol=rtol,
+                atol=atol,
+                # other (non-preferred) way
+                max_step=max_step,
+            )
             # restart variables
             self.t_i_idx = 0
             # y0 is restarted when solve_ivp is called
@@ -1407,14 +1465,14 @@ class LLG:
             # return solution
             return sol
 
-        print(f'[info][solver] Integration Method: {method_info}')
-        print(f'[info][solver] max_step (dt):{max_step}')
+        print(f"[info][solver] Integration Method: {method_info}")
+        print(f"[info][solver] max_step (dt):{max_step}")
 
         # time normalization already done
-        n_t = int(final_t/max_step)
+        n_t = int(final_t / max_step)
         dt = max_step
         # saved vals
-        t_eval = np.linspace(0, final_t, int(final_t/saved_max_step))
+        t_eval = np.linspace(0, final_t, int(final_t / saved_max_step))
         m_eval = np.zeros((t_eval.shape[0], 3))
         # computed_vals
         sqrt_dt = np.sqrt(dt)
@@ -1425,25 +1483,29 @@ class LLG:
         t_idx = 0
         save_idx = 0
 
-        th_gamma = c_gamma_0 * c_U0 / (1 + self.alpha*self.alpha)
+        th_gamma = c_gamma_0 * c_U0 / (1 + self.alpha * self.alpha)
         _sig = np.sqrt(
-            2. * self.alpha * self.temperature * c_KB /
-            (c_U0 * th_gamma * self.ms * self._volume))
+            2.0
+            * self.alpha
+            * self.temperature
+            * c_KB
+            / (c_U0 * th_gamma * self.ms * self._volume)
+        )
         v_cart = np.array([_sig, _sig, _sig])
-        print(f'[debug] v_cart: {v_cart}')
+        print(f"[debug] v_cart: {v_cart}")
 
         # different options
         while t_idx < n_t:
             _dW = self.rng.normal(loc=0, scale=1, size=(3)) * sqrt_dt
-            if method == 'naive_euler':
+            if method == "naive_euler":
                 _m_next = _m + dt * _f(t, _m)
-            elif method == 'heun':
+            elif method == "heun":
                 _dm = _f(t, _m)
                 _m_prime = _m + dt * _dm
                 if not solve_spherical:
                     _m_prime = normalize_cart(_m_prime)
-                _m_next = _m + 0.5*dt*(_dm + _f(t, _m_prime))
-            elif method == 'rk45':
+                _m_next = _m + 0.5 * dt * (_dm + _f(t, _m_prime))
+            elif method == "rk45":
                 if solve_spherical:
                     _f1 = _f(t, _m)
                     _f2 = _f(t + dt / 2.0, _m + dt * _f1 / 2.0)
@@ -1451,38 +1513,44 @@ class LLG:
                     _f4 = _f(t + dt, _m + dt * _f3)
                 else:
                     _f1 = _f(t, _m)
-                    _m1 = normalize_cart(_m + 0.5*dt * _f1)
-                    _f2 = _f(t + 0.5*dt, _m1)
-                    _m2 = normalize_cart(_m + 0.5*dt * _f2)
-                    _f3 = _f(t + 0.5*dt, _m2)
+                    _m1 = normalize_cart(_m + 0.5 * dt * _f1)
+                    _f2 = _f(t + 0.5 * dt, _m1)
+                    _m2 = normalize_cart(_m + 0.5 * dt * _f2)
+                    _f3 = _f(t + 0.5 * dt, _m2)
                     _m3 = normalize_cart(_m + dt * _f3)
                     _f4 = _f(t + dt, _m3)
-                _m_next = _m + dt * \
-                    (_f1 + 2.0 * _f2 + 2.0 * _f3 + _f4) / 6.0
-            elif method == 'stratonovich_heun':
+                _m_next = _m + dt * (_f1 + 2.0 * _f2 + 2.0 * _f3 + _f4) / 6.0
+            elif method == "stratonovich_heun":
                 # Stratonovich Heun's
                 _dm = _f(t, _m, dt=np.inf)
                 _dg = _g(_m, v_cart=v_cart)
                 _m_prime = _m + dt * _dm + _dg * _dW
                 if not solve_spherical:
                     _m_prime = normalize_cart(_m_prime)
-                _m_next = _m + \
-                    0.5 * dt * (_dm + _f(t, _m_prime, dt=np.inf)) +\
-                    0.5 * _dW * (_dg + _g(_m_prime, v_cart=v_cart))
-            elif method == 'stratonovich_rk_weak_2':
+                _m_next = (
+                    _m
+                    + 0.5 * dt * (_dm + _f(t, _m_prime, dt=np.inf))
+                    + 0.5 * _dW * (_dg + _g(_m_prime, v_cart=v_cart))
+                )
+            elif method == "stratonovich_rk_weak_2":
                 # RK 2 Stratonovich
                 _dm = _f(t, _m, dt=np.inf)
                 _dg = _g(_m, v_cart=v_cart)
-                _m_prime = _m + 2/3*(dt * _dm + _dg * _dW)
+                _m_prime = _m + 2 / 3 * (dt * _dm + _dg * _dW)
                 if not solve_spherical:
                     _m_prime = normalize_cart(_m_prime)
-                _m_next = _m + dt*(0.25*_dm + 0.75*_f(2/3*dt + t, _m_prime)) \
-                    + _dW*(0.25*_dg + 0.75*_g(_m_prime, v_cart=v_cart))
+                _m_next = (
+                    _m
+                    + dt * (0.25 * _dm + 0.75 * _f(2 / 3 * dt + t, _m_prime))
+                    + _dW * (0.25 * _dg + 0.75 * _g(_m_prime, v_cart=v_cart))
+                )
             else:
-                print(f'[error] method "{method}" not recogniced '
-                      'for the custom solver. '
-                      'Use "naive_euler", "heun", "rk45",'
-                      '"stratonovich_heun", "stratonovich_rk_weak_2"')
+                print(
+                    f'[error] method "{method}" not recogniced '
+                    "for the custom solver. "
+                    'Use "naive_euler", "heun", "rk45",'
+                    '"stratonovich_heun", "stratonovich_rk_weak_2"'
+                )
                 return None
             # cartesians require normalization
             if not solve_spherical:
@@ -1507,27 +1575,29 @@ class LLG:
         sol.y = m_eval.T
         return sol
 
-    def state_plotter(self,
-                      times,
-                      states,
-                      h_ext_cart,
-                      i_amp,
-                      theta_0,
-                      title,
-                      plot_xy=True,
-                      plot_simple=False):
+    def state_plotter(
+        self,
+        times,
+        states,
+        h_ext_cart,
+        i_amp,
+        theta_0,
+        title,
+        plot_xy=True,
+        plot_simple=False,
+    ):
         """Plot magnetic state/evolution."""
         if plot_simple:
             # \t[debug]
-            fig = plt.figure(figsize=plt.figaspect(1.))
+            fig = plt.figure(figsize=plt.figaspect(1.0))
             xyz = cart_from_spherical_fn(states.T)
             ax_2d = fig.add_subplot(1, 1, 1)
             if plot_xy:
-                ax_2d.plot(1e9*times, xyz[:, 0], ':', label='x')
-                ax_2d.plot(1e9*times, xyz[:, 1], ':', label='y')
-            ax_2d.plot(1e9*times, xyz[:, 2], label='z')
-            ax_2d.set_ylabel('m/|m|')
-            ax_2d.set_xlabel('time (ns)')
+                ax_2d.plot(1e9 * times, xyz[:, 0], ":", label="x")
+                ax_2d.plot(1e9 * times, xyz[:, 1], ":", label="y")
+            ax_2d.plot(1e9 * times, xyz[:, 2], label="z")
+            ax_2d.set_ylabel("m/|m|")
+            ax_2d.set_xlabel("time (ns)")
             ax_2d.legend()
             ax_2d.set_ylim([-1, 1])
             ax_2d.grid()
@@ -1540,7 +1610,7 @@ class LLG:
         # states = spherical_from_cart_np(states)
         # states = states.T
 
-        fig = plt.figure(figsize=plt.figaspect(3.))
+        fig = plt.figure(figsize=plt.figaspect(3.0))
         # Plot h_ext_z and i_amp.
         # Recalculating these just to plot, which is a bit of duplication.
         # But avoids touching the solver code and ensures identical
@@ -1552,26 +1622,26 @@ class LLG:
             h_ext_pts[i] = h_ext_cart(times[i])[2]
             i_amp_pts[i] = i_amp(times[i])
         ax_h = fig.add_subplot(2, 2, 1)
-        ax_h.plot(1e9*times, h_ext_pts)
-        ax_h.set_ylabel('h_ext_z (A/m)')
+        ax_h.plot(1e9 * times, h_ext_pts)
+        ax_h.set_ylabel("h_ext_z (A/m)")
         ax_h.grid()
         ax_i = fig.add_subplot(2, 2, 2)
-        ax_i.plot(1e9*times, 1e6*i_amp_pts)
-        ax_i.set_ylabel('i_amp (uA)')
+        ax_i.plot(1e9 * times, 1e6 * i_amp_pts)
+        ax_i.set_ylabel("i_amp (uA)")
         ax_i.grid()
 
         ax_theta = fig.add_subplot(2, 2, 3)
-        ax_theta.plot(1e9*times, states[1], label='theta')
-        ax_theta.plot(1e9*times, np.abs(states[1]), label='abs_theta')
-        ax_theta.plot(1e9*times, theta_0*np.ones(times.shape), label='theta_0')
+        ax_theta.plot(1e9 * times, states[1], label="theta")
+        ax_theta.plot(1e9 * times, np.abs(states[1]), label="abs_theta")
+        ax_theta.plot(1e9 * times, theta_0 * np.ones(times.shape), label="theta_0")
         # non-uniform time axis, integrate and divide
         if times[-1] != times[0]:
-            theta_mean = np.trapz(
-                np.abs(states[1]), times)/(times[-1] - times[0])
-            print(f'\t[debug] mean theta: {theta_mean}')
-            ax_theta.plot(1e9*times, theta_mean*np.ones(times.shape),
-                          label='theta_mean')
-        ax_theta.set_ylabel('theta [rad]')
+            theta_mean = np.trapezoid(np.abs(states[1]), times) / (times[-1] - times[0])
+            print(f"\t[debug] mean theta: {theta_mean}")
+            ax_theta.plot(
+                1e9 * times, theta_mean * np.ones(times.shape), label="theta_mean"
+            )
+        ax_theta.set_ylabel("theta [rad]")
         ax_theta.legend()
         ax_theta.grid()
 
@@ -1579,75 +1649,79 @@ class LLG:
         xyz = cart_from_spherical_fn(states.T)
         ax_2d = fig.add_subplot(2, 2, 4)
         if plot_xy:
-            ax_2d.plot(1e9*times, xyz[:, 0], ':', label='x')
-            ax_2d.plot(1e9*times, xyz[:, 1], ':', label='y')
-        ax_2d.plot(1e9*times, xyz[:, 2], label='z')
-        ax_2d.set_ylabel('m/|m|')
-        ax_2d.set_xlabel('time (ns)')
+            ax_2d.plot(1e9 * times, xyz[:, 0], ":", label="x")
+            ax_2d.plot(1e9 * times, xyz[:, 1], ":", label="y")
+        ax_2d.plot(1e9 * times, xyz[:, 2], label="z")
+        ax_2d.set_ylabel("m/|m|")
+        ax_2d.set_xlabel("time (ns)")
         ax_2d.legend()
         ax_2d.set_ylim([-1, 1])
         ax_2d.grid()
 
         # Now plot polar 3D plot
-        fig3d = plt.figure(figsize=plt.figaspect(1.))
-        ax_3d = fig3d.add_subplot(1, 1, 1, projection='3d')
+        fig3d = plt.figure(figsize=plt.figaspect(1.0))
+        ax_3d = fig3d.add_subplot(1, 1, 1, projection="3d")
         ax_3d.plot3D(xyz[:, 0], xyz[:, 1], xyz[:, 2])
-        ax_3d.scatter3D(xyz[:, 0], xyz[:, 1], xyz[:, 2],
-                        c=times, cmap='Greens', alpha=0.2)
+        ax_3d.scatter3D(
+            xyz[:, 0], xyz[:, 1], xyz[:, 2], c=times, cmap="Greens", alpha=0.2
+        )
         ax_3d.set_xlim([-1, 1])
         ax_3d.set_ylim([-1, 1])
         ax_3d.set_zlim([-1, 1])
-        ax_3d.set(xlabel='X',
-                  ylabel='Y',
-                  zlabel='Z')
+        ax_3d.set(xlabel="X", ylabel="Y", zlabel="Z")
         plt.title(title)
         plt.show()
 
-    def solve_and_plot(self,
-                       final_t=40e-9,
-                       scipy_ivp=True,
-                       solve_spherical=True,
-                       solve_normalized=False,
-                       method='RK45',
-                       # preferred method to control accuracy:
-                       rtol=1e-3,
-                       atol=1e-6,
-                       # other method (non-preferred)
-                       max_step=np.inf,
-                       plot=True,
-                       plot_simple=True):
+    def solve_and_plot(
+        self,
+        final_t=40e-9,
+        scipy_ivp=True,
+        solve_spherical=True,
+        solve_normalized=False,
+        method="RK45",
+        # preferred method to control accuracy:
+        rtol=1e-3,
+        atol=1e-6,
+        # other method (non-preferred)
+        max_step=np.inf,
+        plot=True,
+        plot_simple=True,
+    ):
         """Solve and plot ODE."""
         t_start = time.time()
-        ode = self.solve_ode(final_t,
-                             scipy_ivp=scipy_ivp,
-                             solve_spherical=solve_spherical,
-                             solve_normalized=solve_normalized,
-                             method=method,
-                             rtol=rtol,
-                             atol=atol,
-                             max_step=max_step,
-                             )
+        ode = self.solve_ode(
+            final_t,
+            scipy_ivp=scipy_ivp,
+            solve_spherical=solve_spherical,
+            solve_normalized=solve_normalized,
+            method=method,
+            rtol=rtol,
+            atol=atol,
+            max_step=max_step,
+        )
         if ode is None:
-            print('[error] an error occurred while computing the ode')
+            print("[error] an error occurred while computing the ode")
             return
         t_end = time.time()
-        print(f'[info] solver took {t_end-t_start} [s]')
-        title = f'{final_t*1e9} ns. Solver: {method}, '
+        print(f"[info] solver took {t_end - t_start} [s]")
+        title = f"{final_t * 1e9} ns. Solver: {method}, "
         if solve_spherical:
-            title += ' spherical coords, '
+            title += " spherical coords, "
         else:
-            title += ' cartesian coords, '
+            title += " cartesian coords, "
         if scipy_ivp:
-            title += ' Scipy solver, '
+            title += " Scipy solver, "
         else:
-            title += ' custom solver, '
-        title += f'max_step: {max_step} s'
+            title += " custom solver, "
+        title += f"max_step: {max_step} s"
         if plot:
-            self.state_plotter(title=title,
-                               times=ode.t,
-                               states=ode.y,
-                               h_ext_cart=self.h_ext_cart,
-                               i_amp=self.i_amp_fn,
-                               theta_0=self.theta_0,
-                               plot_simple=plot_simple)
+            self.state_plotter(
+                title=title,
+                times=ode.t,
+                states=ode.y,
+                h_ext_cart=self.h_ext_cart,
+                i_amp=self.i_amp_fn,
+                theta_0=self.theta_0,
+                plot_simple=plot_simple,
+            )
         return ode

@@ -1,12 +1,12 @@
 <!-- vim-markdown-toc GFM -->
 
 * [Arm's MRAM Simulation/Characterization Framework](#arms-mram-simulationcharacterization-framework)
-	* [Authors and Related Publications](#authors-and-related-publications)
-	* [Quick Start & More info](#quick-start--more-info)
-	* [Files organization](#files-organization)
-	* [s-LLGS Solvers](#s-llgs-solvers)
-		* [No-thermal or emulated-thermal simulations](#no-thermal-or-emulated-thermal-simulations)
-		* [Thermal Stochastic Simulations](#thermal-stochastic-simulations)
+    * [Authors and Related Publications](#authors-and-related-publications)
+    * [Quick Start & More info](#quick-start--more-info)
+    * [Files organization](#files-organization)
+    * [s-LLGS Solvers](#s-llgs-solvers)
+        * [No-thermal or emulated-thermal simulations](#no-thermal-or-emulated-thermal-simulations)
+        * [Thermal Stochastic Simulations](#thermal-stochastic-simulations)
 
 <!-- vim-markdown-toc -->
 # Arm's MRAM Simulation/Characterization Framework
@@ -40,8 +40,8 @@ Summary:
 * `test_sllgs_solver.py` shows you the basic s-LLGS solver config, calling (`sllgs_solver.py`)
 * `stochastic_multithread_simulation.py` (calling `sllgs_solver.py`) is the script
 that helps you launching parallel python s-LLGS simulations
-* These results can be compared against Fooker-Plank simulations (see `plot_sllgs_fpe_comparison.py` script)
-* `analytical.py` and `mtj_fp_fvm.py` contain the Fooker-Plank solvers. Analytical contains the WER/RER fitter for the problem optimization
+* These results can be compared against Fokker-Plank simulations (see `plot_sllgs_fpe_comparison.py` script)
+* `analytical.py` and `mtj_fp_fvm.py` contain the Fokker-Plank solvers. Analytical contains the WER/RER fitter for the problem optimization
 * Verilog-a compact models: run the testbenches `tb.scs` and `tb_subckt.scs`
 
 Please, read the full description at [MRAM Framework Description](./doc/README.md).
@@ -60,7 +60,7 @@ Please, read the full description at [MRAM Framework Description](./doc/README.m
 		* `test_sllgs_solver.py` Simple s-LLGS tests
 		* `ode_solver_custom_fn.py` *solve_ivp* auxilar fns derived from Scipy
 	* `sllgs_fpe_comparison`
-		* `plot_sllgs_fpe_comparison.py` Script for s-LLGS/Fooker-Plank comparison
+		* `plot_sllgs_fpe_comparison.py` Script for s-LLGS/Fokker-Plank comparison
 		* `sllgs_importer.py` Script for importing `stochastic_multithread_simulation.py` results
 	* `fokker_plank`
 		* [README.md](./fokker_plank/README.md) for the MRAM Fokker-Plank description

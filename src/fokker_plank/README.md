@@ -1,6 +1,6 @@
 ## Quick Start & More info
 Summary:
-* Fooker-Plank simulations (see `plot_sllgs_fpe_comparison.py` script) `analytical.py` and `mtj_fp_fvm.py`
+* Fokker-Plank simulations (see `plot_sllgs_fpe_comparison.py` script) `analytical.py` and `mtj_fp_fvm.py`
 
 Please, read the full description at [MRAM Framework Description](./doc/README.md).
 

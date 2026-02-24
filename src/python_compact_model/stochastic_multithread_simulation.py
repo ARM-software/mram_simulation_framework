@@ -132,6 +132,7 @@ def worker_stt_simplest(idx,
         h_ext_cart=test_h_ext,
         i_amp_fn=test_current,
         seed=idx+2000)
+    llg_b._get_Ic(debug=True)
     llg_sol = llg_b.solve_and_plot(final_t=t_final,
                                    max_step=max_step,
                                    solve_spherical=False,
@@ -159,6 +160,7 @@ def run_walks(
         alpha,
         max_step,
         t_delay,
+        initial_idx=0,
         t_pulse=60e-9,
         total_th_sims=10000,
         cores=32,
@@ -172,7 +174,7 @@ def run_walks(
     results_a = [pool.apply_async(
         worker_stt_simplest,
         args=(
-            idx,
+            initial_idx+idx,
             solve_normalized,
             method,
             I0,
@@ -205,11 +207,11 @@ def run_walks(
     print('[info][parallel_solver] all threads computed')
 
     np.savetxt(
-        f'{suffix}_{t_delay}_del_{I0}A_interp_{total_th_sims}_sims.csv',
+        f'{suffix}_{t_delay}_del_{I0}A_interp_{total_th_sims}_sims_{initial_idx}.csv',
         np.array(theta_i_list))
     np.savetxt(
         f'{suffix}_{t_delay}_del_{I0}A_time_interp_'
-        f'{total_th_sims}_sims.csv',
+        f'{total_th_sims}_sims_{initial_idx}.csv',
         t_i)
 
     if not plot_walks:
@@ -291,6 +293,11 @@ if __name__ == '__main__':
         type=str2bool,
         default=False,
         help='Plot distribution')
+    parser.add_argument(
+        '--initial_idx',
+        type=int,
+        default=int(0),
+        help='initial idx (for seeding)')
 
     args = parser.parse_args()
 
@@ -310,6 +317,7 @@ if __name__ == '__main__':
         t_delay=args.t_delay,
         t_pulse=args.t_pulse,
         total_th_sims=args.total_th_sims,
+        initial_idx=args.initial_idx,
         cores=args.cores,
         plot_walks=args.plot_walks
     )
@@ -317,3 +325,63 @@ if __name__ == '__main__':
     print('\t[experiment] reproduce results with:')
     for k in args.__dict__:
         print('\t\t', k, ': ', args.__dict__[k])
+
+
+def test():
+
+    run_walks(
+        solve_normalized=True,
+        method='stratonovich_heun',
+        suffix='rand_walk_1Em13',
+        max_step=1e-13,
+        I0=40e-6,
+        alpha=0.01,
+        t_delay=3e-9,
+        t_pulse=15e-9,
+        total_th_sims=int(1),
+        initial_idx=1000,
+        cores=19,
+        plot_walks=True
+    )
+
+def test_tstep():
+
+    run_walks(
+        solve_normalized=True,
+        method='stratonovich_heun',
+        suffix='rand_walk_1Em14',
+        max_step=1e-14,
+        I0=40e-6,
+        alpha=0.01,
+        t_delay=3e-9,
+        t_pulse=12e-9,
+        total_th_sims=int(1000),
+        cores=19,
+        plot_walks=True
+    )
+    run_walks(
+        solve_normalized=True,
+        method='stratonovich_heun',
+        suffix='rand_walk_0p5Em13',
+        max_step=0.5e-13,
+        I0=40e-6,
+        alpha=0.01,
+        t_delay=3e-9,
+        t_pulse=12e-9,
+        total_th_sims=int(1000),
+        cores=19,
+        plot_walks=True
+    )
+    run_walks(
+        solve_normalized=True,
+        method='stratonovich_heun',
+        suffix='rand_walk_1Em13',
+        max_step=1e-13,
+        I0=40e-6,
+        alpha=0.01,
+        t_delay=3e-9,
+        t_pulse=12e-9,
+        total_th_sims=int(1000),
+        cores=19,
+        plot_walks=True
+    )

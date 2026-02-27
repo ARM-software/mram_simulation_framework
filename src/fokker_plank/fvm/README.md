@@ -7,6 +7,10 @@ Switching Distributions for Perpendicular Spin-Torque Devices Within the Macrosp
 
 This note explains how the paper’s θ-form Fokker–Planck equation is implemented in the repository, and why the explicit metric factor $1/\sin\theta$ does **not** appear in the code.
 
+
+## `fvm_classes.py` 
+`fvm_classes.py` Finite Volume Method classes, see [FVM](https://github.com/danieljfarrell/FVM and [FVM2](https://github.com/Fratorhe/FVM/))
+
 ---
 
 ## 1) Equation in $ \theta $ (paper) and change of variables

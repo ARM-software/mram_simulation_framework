@@ -25,7 +25,7 @@ np.random.seed(seed=1)
 def solve_mtj_fp(
     dim_points=1000,
     rho_init=None,
-    delta=60,
+    delta=60.0,
     i0=1.5,
     h=0.0,
     t_step=0.001,

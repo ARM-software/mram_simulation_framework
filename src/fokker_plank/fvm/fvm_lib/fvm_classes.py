@@ -154,10 +154,23 @@ class AdvectionDiffusionModel(object):
             #               CFL_max)
 
         if discretization == 'exponential':
-            self.kappa = (np.exp(mu) + 1)/(np.exp(mu) - 1) - 2/mu
-            self.kappa[np.where(mu == 0.0)] = 0
-            self.kappa[np.where(np.isposinf(mu))] = 1
-            self.kappa[np.where(np.isneginf(mu))] = -1
+            mu = self.peclet_number()
+            kappa = np.empty_like(mu, dtype=float)
+            # Treat very small mu with a series to avoid inf/NaN from cancellation:
+            # coth(mu/2) - 2/mu = mu/6 - mu^3/360 + O(mu^5)
+            small = np.abs(mu) < 1e-6
+            mu_s = mu[small]
+            kappa[small] = (mu_s / 6.0) - (mu_s**3 / 360.0)
+
+            mu_l = mu[~small]
+            # Use tanh-based coth (no exp overflow)
+            kappa[~small] = (1.0 / np.tanh(mu_l / 2.0)) - (2.0 / mu_l)
+
+            # Optional: handle any remaining non-finite values robustly
+            kappa[np.isposinf(mu)] = 1.0
+            kappa[np.isneginf(mu)] = -1.0
+
+            self.kappa = kappa
         elif discretization == 'upwind':
             kappa_neg = np.where(self.a < 0, -1, 0)
             kappa_pos = np.where(self.a > 0, 1, 0)

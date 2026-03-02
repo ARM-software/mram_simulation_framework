@@ -105,7 +105,7 @@ def solve_mtj_fp(
 
     rho = rho_init
 
-    t0 = np.linspace(0, T, int(T / t_step) + 1)
+    t0 = np.linspace(0, T, np.ceil(T / t_step).astype(int) + 1)
     if do_3d:
         rho = np.zeros((t0.shape[0], mesh.cells.shape[0]))
         area = np.zeros(t0.shape[0])
